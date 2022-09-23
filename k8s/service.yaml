@@ -1,0 +1,13 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: vendors-service
+  labels:
+    app: vendors-service
+  namespace: ikomida
+spec:
+  selector:
+    app: vendors
+  ports:
+    - protocol: TCP
+      port: 1988
