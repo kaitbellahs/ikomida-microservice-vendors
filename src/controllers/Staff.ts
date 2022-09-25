@@ -9,14 +9,22 @@ import {
   DBModels,
 } from '@ikomida/shared-backend';
 
+const host: any = {
+  development: 'https://dev.ikomida.com/',
+  homologation: 'https://hmlg.ikomida.com/',
+  production: 'https://ikomida.com/',
+}
+
 export default class Staff {
   randCodes;
   limit = 10;
   logger;
+  host
 
   constructor(logger: Utils.Logger) {
     this.randCodes = new Utils.RandCodes();
     this.logger = logger;
+    this.host = host[process.env.NODE_ENV ?? 'development'];
   }
 
   async getStaff(identity: Types.Classes.CUser, timestamp: number) {
@@ -256,11 +264,11 @@ export default class Staff {
             'iKomida dashboard',
             userModel?.name,
             contractModel?.contractName,
-            'https://ikomida.com/apps',
+            `${this.host}/apps`,
             userModel?.phone,
             newPassword,
             'iKomida',
-            'https://ikomida.com/',
+            this.host,
           );
           const emailPayload = new Types.Classes.CAMQPPayload<Types.Classes.CEmail>({
             method: 'send',

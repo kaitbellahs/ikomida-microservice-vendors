@@ -11,13 +11,21 @@ import {
 } from '@ikomida/shared-backend';
 import { Buffer } from 'buffer';
 
+const bucket: any = {
+  development: 'dev.',
+  homologation: 'hmlg.',
+  production: '',
+}
+
 export default class Settings {
   logger;
   googleAdmin;
+  bucket
 
   constructor(logger: Utils.Logger) {
     this.logger = logger;
     this.googleAdmin = new Utils.GoogleAdmin(this.logger);
+    this.bucket = bucket[process.env.NODE_ENV ?? 'development'];
   }
 
   async getSettings(identity: Types.Classes.CUser) {
@@ -222,10 +230,9 @@ export default class Settings {
         const imageUri = `${identity.ikomidaID}/vendor/profile/logo.${imageExtension}`;
         const buffer = Buffer?.from(base64Image, 'base64');
         try {
-          const isProduction = process.env.NODE_ENV === 'production'
           vendorSettingsModel.restaurantImage =
             (await this.googleAdmin?.uploadFileToStorage(
-              `${!isProduction ? 'hmlg.' : ''}cdn.ikomida.com`,
+              `${this.bucket}cdn.ikomida.com`,
               buffer,
               imageExtension,
               imageUri,
@@ -356,7 +363,6 @@ export default class Settings {
         ),
       );
     } catch (exception: any) {
-      console.error(exception);
       const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_INTEGRATE_PAGSEGURO_EXCEPTION, exception);
       return error.logAndReturn(this.logger);
     }
@@ -626,7 +632,6 @@ export default class Settings {
       );
       return new Utils.Return(true, vendorLimits);
     } catch (exception: any) {
-      console.warn(exception);
       const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PAYMENTS_SERVICE_NEW_PAYMENT_METHOD_EXCEPTION, exception);
       return error.logAndReturn(this.logger);
     }
