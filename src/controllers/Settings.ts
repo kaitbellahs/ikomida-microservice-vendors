@@ -640,22 +640,20 @@ export default class Settings {
           }
         })) ?? 0
       const vendorLimits = Types.Classes.CVendorLimits.init(
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.staff ?? -1, stafs),
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.products ?? -1, contractModel?.products?.length ?? 0),
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.orders ?? -1, contractModel?.orders?.length ?? 0),
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.coupons ?? -1, contractModel?.coupons?.length ?? 0),
         Types.Classes.CVendorLimit.init(
-          contractModel?.plan?.staff ?? -1,
-          contractModel?.plan?.products ?? -1,
-          contractModel?.plan?.orders ?? -1,
-          contractModel?.plan?.coupons ?? -1,
           contractModel?.plan?.categories ?? -1,
-          contractModel?.plan?.pushNotifications ?? -1,
-          contractModel?.plan?.billing ?? -1
+          contractModel?.productCategories?.length ?? 0
         ),
         Types.Classes.CVendorLimit.init(
-          stafs,
-          contractModel?.products?.length ?? 0,
-          contractModel?.orders?.length ?? 0,
-          contractModel?.coupons?.length ?? 0,
-          contractModel?.productCategories?.length ?? 0,
-          contractModel?.pNMessages?.length ?? 0,
+          contractModel?.plan?.pushNotifications ?? -1,
+          contractModel?.productCategories?.length ?? 0
+        ),
+        Types.Classes.CVendorLimit.init(
+          contractModel?.plan?.billing ?? -1,
           (ordersTotal?.length ?? 0) > 0 ? ordersTotal?.reduce((a, b) => a + b) ?? 0 : 1
         )
       )
