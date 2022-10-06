@@ -49,7 +49,7 @@ jobs:
       - id: build-push
         name: Build & push docker image
         run: |-
-          docker buildx build -t "${DOCKER_IMAGE}:${PACKAGE_VERSION}" -t "${DOCKER_IMAGE}:${TAG}" . -o type=registry --cache-to=type=registry --cache-from=type=registry --build-arg GOOGLE_SERVICE_ACCOUNT="${BASE64_SERVICE_ACCOUNT}" --build-arg PROJECT_ID="${PROJECT_ID}" --builder=container
+          docker buildx build -t "${DOCKER_IMAGE}:${PACKAGE_VERSION}" -t "${DOCKER_IMAGE}:${TAG}" . -o type=registry --cache-to="type=registry,ref=${DOCKER_IMAGE}:cache,mode=max" --cache-from="type=registry,ref=${DOCKER_IMAGE}:cache" --build-arg GOOGLE_SERVICE_ACCOUNT="${BASE64_SERVICE_ACCOUNT}" --build-arg PROJECT_ID="${PROJECT_ID}" --builder=container
       - name: Update branch tag version
         run: |
           git config user.name "${GITHUB_ACTOR}"
