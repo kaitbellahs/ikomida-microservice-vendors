@@ -41,14 +41,6 @@ jobs:
       - name: Setup GKE credentials
         run: |-
           gcloud container clusters get-credentials "${GKE_CLUSTER}" --zone "${GKE_ZONE}"
-      - id: docker-cache
-        name: Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
       - id: Builder
         name: Create docker builder
         run: |-
