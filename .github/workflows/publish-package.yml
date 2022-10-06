@@ -12,7 +12,8 @@ env:
   GCLOUD_LOCATION: us-central1
   GKE_CLUSTER: ikomida-cluster
   GKE_ZONE: us-central1-b
-  IMAGE: venders-microservice-image
+  NAME: vendors
+  TYPE: microservice
   TAG: latest
 
 jobs:
@@ -28,7 +29,7 @@ jobs:
           credentials_json: "${{ endsWith(github.ref, '/main') && secrets.IKOMIDA_PROD_GCLOUD_SERVICE_ACOUNT || (endsWith(github.ref, '/hmlg') && secrets.IKOMIDA_HMLG_GCLOUD_SERVICE_ACOUNT || secrets.IKOMIDA_DEV_GCLOUD_SERVICE_ACOUNT) }}"
       - name: Export ENV
         run: |-
-          DOCKER_IMAGE=${GCLOUD_LOCATION}-docker.pkg.dev/${GCLOUD_PROJECT}/docker/${IMAGE}
+          DOCKER_IMAGE=${GCLOUD_LOCATION}-docker.pkg.dev/${GCLOUD_PROJECT}/docker/${NAME}-${TYPE}-image
           echo "DOCKER_IMAGE=$(echo $DOCKER_IMAGE)" >> $GITHUB_ENV
           PACKAGE_VERSION=$(cat package.json | grep \\\"version\\\" | head -1 | awk -F: '{ print $2 }' | sed 's/[\",]//g' | tr -d '[[:space:]]')
           echo "PACKAGE_VERSION=$(echo $PACKAGE_VERSION)" >> $GITHUB_ENV
@@ -56,7 +57,7 @@ jobs:
       - id: build-push
         name: Build & push docker image
         run: |-
-          docker buildx build -t "${DOCKER_IMAGE}:${PACKAGE_VERSION}" -t "${DOCKER_IMAGE}:${TAG}" . -o "type=registry" --cache-to "type=local,dest=/tmp/.buildx-cache-new,mode=max" --cache-from "type=local,src=/tmp/.buildx-cache" --build-arg GOOGLE_SERVICE_ACCOUNT="${BASE64_SERVICE_ACCOUNT}" --build-arg PROJECT_ID="${PROJECT_ID}" --builder=container
+          docker buildx build -t "${DOCKER_IMAGE}:${PACKAGE_VERSION}" -t "${DOCKER_IMAGE}:${TAG}" . -o type=registry --cache-to=type=registry --cache-from=type=registry --build-arg GOOGLE_SERVICE_ACCOUNT="${BASE64_SERVICE_ACCOUNT}" --build-arg PROJECT_ID="${PROJECT_ID}" --builder=container
       - name: Update branch tag version
         run: |
           git config user.name "${GITHUB_ACTOR}"
@@ -70,5 +71,5 @@ jobs:
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
       - name: Deploy
         run: |-
-          kubectl -n ikomida delete deploy venders-microservice || true
+          kubectl -n ikomida delete deployment.apps/${NAME}-${TYPE} || true
           for FILE in k8s/*.yaml; do printf "$(cat $FILE)\n---\n" | envsubst; done | kubectl apply -f -
