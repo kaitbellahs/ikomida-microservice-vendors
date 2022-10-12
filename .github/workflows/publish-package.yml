@@ -1,4 +1,4 @@
-name: publish ikomida venders service to artifact registry on pull request merge
+name: publish ikomida vendors service to artifact registry on pull request merge
 on:
   pull_request_target:
     types:
@@ -58,5 +58,4 @@ jobs:
           git push origin "v${PACKAGE_VERSION}"
       - name: Deploy
         run: |-
-          kubectl -n ikomida delete deployment.apps/${NAME}-${TYPE} || true
           for FILE in k8s/*.yaml; do printf "$(cat $FILE)\n---\n" | envsubst; done | kubectl apply -f -
