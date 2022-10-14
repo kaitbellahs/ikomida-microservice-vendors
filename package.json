@@ -1,6 +1,6 @@
 {
   "name": "ikomida-vendor-service",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "ikomida vendor service",
   "private": true,
   "module": "build/service.js",
@@ -27,7 +27,7 @@
   "author": "Khalid Ait Bellahs",
   "license": "UNLICENSED",
   "dependencies": {
-    "@ikomida/shared-backend": "^1.0.18",
+    "@ikomida/shared-backend": "^1.0.20",
     "body-parser": "^1.20.1",
     "cors": "^2.8.5",
     "express": "^4.18.2",
