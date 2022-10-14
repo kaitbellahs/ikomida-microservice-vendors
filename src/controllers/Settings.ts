@@ -564,6 +564,7 @@ export default class Settings {
 
   async getLimits(identity: Types.Classes.CUser) {
     try {
+      console.log(0)
       const contractModel = await DBModels.ContractModel.findOne({
         where: {
           ikomidaID: identity.ikomidaID
@@ -622,15 +623,15 @@ export default class Settings {
           }
         ]
       })
+      console.log(1)
       if (!contractModel) {
-        const error = new Utils.iKomidaError(
-          Utils.iKomidaError.IKOMIDA_PAYMENTS_SERVICE_NEW_PAYMENT_METHOD_INVALID_CONTRACT
-        )
-        return error.logAndReturn(this.logger)
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PAYMENTS_SERVICE_NEW_PAYMENT_METHOD_INVALID_CONTRACT)
       }
+      console.log(2)
       const ordersTotal = contractModel?.orders?.map(
         order => (order?.subtotal ?? 0) + (order?.delivery ?? 0) - (order?.discount ?? 0)
       )
+      console.log(3)
       const stafs =
         (await contractModel?.$count('users', {
           where: {
@@ -639,6 +640,7 @@ export default class Settings {
             }
           }
         })) ?? 0
+      console.log(4)
       const vendorLimits = Types.Classes.CVendorLimits.init(
         Types.Classes.CVendorLimit.init(contractModel?.plan?.staff ?? -1, stafs),
         Types.Classes.CVendorLimit.init(contractModel?.plan?.products ?? -1, contractModel?.products?.length ?? 0),
@@ -657,12 +659,16 @@ export default class Settings {
           (ordersTotal?.length ?? 0) > 0 ? ordersTotal?.reduce((a, b) => a + b) ?? 0 : 1
         )
       )
+      console.log(5)
       return new Utils.Return(true, vendorLimits)
     } catch (exception: any) {
-      const error = new Utils.iKomidaError(
+      let error = new Utils.iKomidaError(
         Utils.iKomidaError.IKOMIDA_PAYMENTS_SERVICE_NEW_PAYMENT_METHOD_EXCEPTION,
         exception
       )
+      if (exception instanceof Utils.iKomidaError) {
+        error = exception
+      }
       return error.logAndReturn(this.logger)
     }
   }
