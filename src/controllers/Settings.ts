@@ -564,7 +564,7 @@ export default class Settings {
 
   async getLimits(identity: Types.Classes.CUser) {
     try {
-      console.log(0)
+      //TODO: -- make it as a single transaction
       const contractModel = await DBModels.ContractModel.findOne({
         where: {
           ikomidaID: identity.ikomidaID
@@ -587,51 +587,12 @@ export default class Settings {
           {
             model: DBModels.ContractPaymentSignatureModel,
             required: false
-          },
-          {
-            model: DBModels.ProductModel,
-            required: false
-          },
-          {
-            model: DBModels.ProductCategoryModel,
-            required: false
-          },
-          {
-            model: DBModels.CouponModel,
-            required: false
-          },
-          {
-            model: DBModels.OrderModel,
-            where: {
-              createdAt: {
-                [Domain.SqlDB.Op.gte]: Domain.SqlDB.Column('contractPaymentSignature.lastDueDate')
-              },
-              status: {
-                [Domain.SqlDB.Op.notIn]: [Types.Types.TOrderStatus.CANCELED]
-              }
-            },
-            required: false
-          },
-          {
-            model: DBModels.PNMessageModel,
-            where: {
-              createdAt: {
-                [Domain.SqlDB.Op.gte]: Domain.SqlDB.Column('contractPaymentSignature.lastDueDate')
-              }
-            },
-            required: false
           }
         ]
       })
-      console.log(1)
       if (!contractModel) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PAYMENTS_SERVICE_NEW_PAYMENT_METHOD_INVALID_CONTRACT)
       }
-      console.log(2)
-      const ordersTotal = contractModel?.orders?.map(
-        order => (order?.subtotal ?? 0) + (order?.delivery ?? 0) - (order?.discount ?? 0)
-      )
-      console.log(3)
       const stafs =
         (await contractModel?.$count('users', {
           where: {
@@ -640,26 +601,42 @@ export default class Settings {
             }
           }
         })) ?? 0
-      console.log(4)
+      const products = (await contractModel?.$count('products')) ?? 0
+      const coupons = (await contractModel?.$count('coupons')) ?? 0
+      const productCategories = (await contractModel?.$count('productCategories')) ?? 0
+      const pushNotifications =
+        (await contractModel?.$count('vendorPNMessages', {
+          where: {
+            createdAt: {
+              [Domain.SqlDB.Op.gte]: contractModel.contractPaymentSignature?.lastDueDate
+            },
+            vendor: true
+          }
+        })) ?? 0
+      const orders =
+        (await contractModel?.$get('orders', {
+          where: {
+            createdAt: {
+              [Domain.SqlDB.Op.gte]: contractModel.contractPaymentSignature?.lastDueDate
+            },
+            status: {
+              [Domain.SqlDB.Op.notIn]: [Types.Types.TOrderStatus.CANCELED]
+            }
+          }
+        })) ?? 0
+      const ordersTotal = orders?.map(order => (order?.subtotal ?? 0) + (order?.delivery ?? 0) - (order?.discount ?? 0))
       const vendorLimits = Types.Classes.CVendorLimits.init(
         Types.Classes.CVendorLimit.init(contractModel?.plan?.staff ?? -1, stafs),
-        Types.Classes.CVendorLimit.init(contractModel?.plan?.products ?? -1, contractModel?.products?.length ?? 0),
-        Types.Classes.CVendorLimit.init(contractModel?.plan?.orders ?? -1, contractModel?.orders?.length ?? 0),
-        Types.Classes.CVendorLimit.init(contractModel?.plan?.coupons ?? -1, contractModel?.coupons?.length ?? 0),
-        Types.Classes.CVendorLimit.init(
-          contractModel?.plan?.categories ?? -1,
-          contractModel?.productCategories?.length ?? 0
-        ),
-        Types.Classes.CVendorLimit.init(
-          contractModel?.plan?.pushNotifications ?? -1,
-          contractModel?.productCategories?.length ?? 0
-        ),
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.products ?? -1, products ?? 0),
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.orders ?? -1, orders.length),
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.coupons ?? -1, coupons ?? 0),
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.categories ?? -1, productCategories ?? 0),
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.pushNotifications ?? -1, pushNotifications ?? 0),
         Types.Classes.CVendorLimit.init(
           contractModel?.plan?.billing ?? -1,
           (ordersTotal?.length ?? 0) > 0 ? ordersTotal?.reduce((a, b) => a + b) ?? 0 : 1
         )
       )
-      console.log(5)
       return new Utils.Return(true, vendorLimits)
     } catch (exception: any) {
       let error = new Utils.iKomidaError(
