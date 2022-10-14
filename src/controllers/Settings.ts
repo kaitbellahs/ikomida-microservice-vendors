@@ -601,9 +601,9 @@ export default class Settings {
             }
           }
         })) ?? 0
-      const products = await contractModel?.$count('products') ?? 0
-      const coupons = await contractModel?.$count('coupons') ?? 0
-      const productCategories = await contractModel?.$count('productCategories') ?? 0
+      const products = (await contractModel?.$count('products')) ?? 0
+      const coupons = (await contractModel?.$count('coupons')) ?? 0
+      const productCategories = (await contractModel?.$count('productCategories')) ?? 0
       const pushNotifications =
         (await contractModel?.$count('vendorPNMessages', {
           where: {
@@ -611,7 +611,7 @@ export default class Settings {
               [Domain.SqlDB.Op.gte]: contractModel.contractPaymentSignature?.lastDueDate
             },
             vendor: true
-          },
+          }
         })) ?? 0
       const orders =
         (await contractModel?.$get('orders', {
@@ -622,24 +622,16 @@ export default class Settings {
             status: {
               [Domain.SqlDB.Op.notIn]: [Types.Types.TOrderStatus.CANCELED]
             }
-          },
+          }
         })) ?? 0
-      const ordersTotal = orders?.map(
-        order => (order?.subtotal ?? 0) + (order?.delivery ?? 0) - (order?.discount ?? 0)
-      )
+      const ordersTotal = orders?.map(order => (order?.subtotal ?? 0) + (order?.delivery ?? 0) - (order?.discount ?? 0))
       const vendorLimits = Types.Classes.CVendorLimits.init(
         Types.Classes.CVendorLimit.init(contractModel?.plan?.staff ?? -1, stafs),
         Types.Classes.CVendorLimit.init(contractModel?.plan?.products ?? -1, products ?? 0),
         Types.Classes.CVendorLimit.init(contractModel?.plan?.orders ?? -1, orders.length),
         Types.Classes.CVendorLimit.init(contractModel?.plan?.coupons ?? -1, coupons ?? 0),
-        Types.Classes.CVendorLimit.init(
-          contractModel?.plan?.categories ?? -1,
-          productCategories ?? 0
-        ),
-        Types.Classes.CVendorLimit.init(
-          contractModel?.plan?.pushNotifications ?? -1,
-          pushNotifications ?? 0
-        ),
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.categories ?? -1, productCategories ?? 0),
+        Types.Classes.CVendorLimit.init(contractModel?.plan?.pushNotifications ?? -1, pushNotifications ?? 0),
         Types.Classes.CVendorLimit.init(
           contractModel?.plan?.billing ?? -1,
           (ordersTotal?.length ?? 0) > 0 ? ordersTotal?.reduce((a, b) => a + b) ?? 0 : 1
