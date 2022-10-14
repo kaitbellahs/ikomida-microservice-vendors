@@ -1,6 +1,6 @@
 {
   "name": "ikomida-vendor-service",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "description": "ikomida vendor service",
   "private": true,
   "module": "build/service.js",
