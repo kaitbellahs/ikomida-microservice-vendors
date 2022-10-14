@@ -31,8 +31,7 @@ export default class Staff {
     try {
       const role = BackendTypes.Roles.valueOf(identity.role)
       if (!role || ![BackendTypes.Roles.VENDOR, BackendTypes.Roles.ADMIN].includes(role)) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLERS_UNAUTHORIZED)
-        return error.logAndReturn(this.logger)
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLERS_UNAUTHORIZED)
       }
       let staff
       const where =
@@ -112,8 +111,7 @@ export default class Staff {
           ]
         })
         if ((contractModel?.users?.length ?? 0) !== 1) {
-          const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLER_INVALID_USER)
-          return error.logAndReturn(this.logger)
+          throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLER_INVALID_USER)
         }
         const userModels = await contractModel?.$get('users', {
           where: {
@@ -164,21 +162,24 @@ export default class Staff {
         staff?.sort((item1, item2) => (item2?.timestamp ?? 0) - (item1?.timestamp ?? 0))
       )
     } catch (exception: any) {
-      const error = new Utils.iKomidaError(
+      let error = new Utils.iKomidaError(
         Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLER_EXCEPTION,
         exception?.message
       )
+      if (exception instanceof Utils.iKomidaError) {
+        error = exception
+      }
       return error.logAndReturn(this.logger)
     }
   }
 
   async newStaff(identity: Types.Classes.CUser, object: any) {
+    let transaction: Domain.SqlDB.Transaction | undefined = undefined
     try {
       const staff: Types.Classes.CUser = Types.Classes.CUser.fromObject(object)
       const role = BackendTypes.Roles.valueOf(identity.role)
       if (!role || ![BackendTypes.Roles.VENDOR, BackendTypes.Roles.ADMIN].includes(role)) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
-        return error.logAndReturn(this.logger)
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
       }
       //TODO: add validation
       // if (!staff.validate()) {
@@ -207,8 +208,7 @@ export default class Staff {
         ]
       })
       if ((contractModel?.users?.length ?? 0) !== 1) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
-        return error.logAndReturn(this.logger)
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
       }
       let countUsers = await contractModel?.$count('users', {
         where: {
@@ -219,11 +219,7 @@ export default class Staff {
       })
       const staffLimit = contractModel?.plan?.staff ?? -1
       if (staffLimit !== 0 && (countUsers ?? 0) >= staffLimit) {
-        const error = new Utils.iKomidaError(
-          Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_NEW_STAFF_LIMIT_EXCEEDED,
-          staffLimit
-        )
-        return error.logAndReturn(this.logger)
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_NEW_STAFF_LIMIT_EXCEEDED, staffLimit)
       }
       countUsers = await contractModel?.$count('users', {
         where: {
@@ -245,71 +241,75 @@ export default class Staff {
         }
       })
       if (countUsers !== 0) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_USED_USER)
-        return error.logAndReturn(this.logger)
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_USED_USER)
       }
       const newPassword = passwordGenerator(8)
-      const userModel: DBModels.UserModel | undefined = await contractModel?.$create('user', {
-        role: BackendTypes.Roles.STAFF,
-        name: staff?.name,
-        lastName: staff?.lastName,
-        email: staff?.email,
-        identity: Logics.Finances.toNumber(staff?.identity),
-        phone: Logics.Finances.toNumber(staff?.phone),
-        areaCode: Logics.Finances.toNumber(staff?.areaCode),
-        password: (await cryptPassword(newPassword)).hash
+      transaction = await Domain.SqlDB.sequelize.transaction({
+        autocommit: false
       })
+      const userModel: DBModels.UserModel | undefined = await contractModel?.$create(
+        'user',
+        {
+          role: BackendTypes.Roles.STAFF,
+          name: staff?.name,
+          lastName: staff?.lastName,
+          email: staff?.email,
+          identity: Logics.Finances.toNumber(staff?.identity),
+          phone: Logics.Finances.toNumber(staff?.phone),
+          areaCode: Logics.Finances.toNumber(staff?.areaCode),
+          password: (await cryptPassword(newPassword)).hash
+        },
+        { transaction }
+      )
       if (!userModel) {
-        const error = new Utils.iKomidaError(
-          Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_CREATE_USER_DB_ERROR
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_CREATE_USER_DB_ERROR)
+      }
+      try {
+        const message = new Utils.Email(
+          Utils.Email.STAFF_REGISTRATION_SUCCESSFULL,
+          'iKomida dashboard',
+          userModel?.name,
+          contractModel?.contractName,
+          `${this.host}/apps`,
+          userModel?.phone,
+          newPassword,
+          'iKomida',
+          this.host
         )
-        return error.logAndReturn(this.logger)
+        const emailPayload = new Types.Classes.CAMQPPayload<Types.Classes.CEmail>({
+          method: 'send',
+          object: {
+            from: {
+              email: `no-replay@ikomida.com`,
+              name: `iKomida`
+            },
+            to: {
+              email: userModel?.email,
+              name: `${userModel?.name} ${userModel?.lastName}`
+            },
+            message
+          }
+        })
+        const amqp = new Domain.RabbitMQ(this.logger)
+        await amqp?.publish(Domain.RabbitMQ.EMAIL_QUEUE, emailPayload)
+        await amqp?.close()
+      } catch (exception: any) {
+        throw new Utils.iKomidaError(
+          Utils.iKomidaError.IKOMIDA_ORDERS_SERVICE_PAGSEGURO_WEBHOOK_PUSH_NOTIFICATION_EXCEPTION_2,
+          exception
+        )
       }
-      if (userModel) {
-        try {
-          const message = new Utils.Email(
-            Utils.Email.STAFF_REGISTRATION_SUCCESSFULL,
-            'iKomida dashboard',
-            userModel?.name,
-            contractModel?.contractName,
-            `${this.host}/apps`,
-            userModel?.phone,
-            newPassword,
-            'iKomida',
-            this.host
-          )
-          const emailPayload = new Types.Classes.CAMQPPayload<Types.Classes.CEmail>({
-            method: 'send',
-            object: {
-              from: {
-                email: `no-replay@ikomida.com`,
-                name: `iKomida`
-              },
-              to: {
-                email: userModel?.email,
-                name: `${userModel?.name} ${userModel?.lastName}`
-              },
-              message
-            }
-          })
-          const amqp = new Domain.RabbitMQ(this.logger)
-          await amqp?.publish(Domain.RabbitMQ.EMAIL_QUEUE, emailPayload)
-          await amqp?.close()
-        } catch (exception: any) {
-          const error = new Utils.iKomidaError(
-            Utils.iKomidaError.IKOMIDA_ORDERS_SERVICE_PAGSEGURO_WEBHOOK_PUSH_NOTIFICATION_EXCEPTION_2,
-            exception
-          )
-          error.log(this.logger)
-        }
-        return new Utils.Return(true)
-      }
+      await transaction.commit()
       return new Utils.Return(true)
     } catch (exception: any) {
-      const error = new Utils.iKomidaError(
+      await transaction?.rollback()
+      let error = new Utils.iKomidaError(
         Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_EXCEPTION,
         exception?.message
       )
+      if (exception instanceof Utils.iKomidaError) {
+        error = exception
+      }
       return error.logAndReturn(this.logger)
     }
   }
@@ -318,12 +318,10 @@ export default class Staff {
     try {
       const role = BackendTypes.Roles.valueOf(identity.role)
       if (!role || ![BackendTypes.Roles.VENDOR, BackendTypes.Roles.ADMIN].includes(role)) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
-        return error.logAndReturn(this.logger)
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
       }
       if (!Logics.Validations.validateUUID(id)) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_MISSING_DATA)
-        return error.logAndReturn(this.logger)
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_MISSING_DATA)
       }
       const contractModel = await DBModels.ContractModel.findOne({
         where: {
@@ -343,8 +341,7 @@ export default class Staff {
         ]
       })
       if ((contractModel?.users?.length ?? 0) !== 1) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
-        return error.logAndReturn(this.logger)
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
       }
       const staffModels = await contractModel?.$get('users', {
         where: {
@@ -352,16 +349,18 @@ export default class Staff {
         }
       })
       if ((staffModels?.length ?? 0) !== 1) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
-        return error.logAndReturn(this.logger)
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
       }
       await staffModels?.[0].destroy()
       return new Utils.Return(true)
     } catch (exception: any) {
-      const error = new Utils.iKomidaError(
+      let error = new Utils.iKomidaError(
         Utils.iKomidaError.IKOMIDA_ADMIN_SERVICE_DELETE_SETTING_EXCEPTION,
         exception?.message
       )
+      if (exception instanceof Utils.iKomidaError) {
+        error = exception
+      }
       return error.logAndReturn(this.logger)
     }
   }
