@@ -67,24 +67,6 @@ export default class Layout {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_SET_LAYOUT_EMPTY)
         return error.logAndReturn(this.logger)
       }
-      // const layout: Types.Classes.CLayout = Types.Classes.CLayout.fromObject({
-      //   link: object?.link,
-      //   background: object?.background,
-      //   color: object?.color,
-      //   header: {
-      //     background: object?.header?.background,
-      //     color: object?.header?.color,
-      //     menuHamburger: object?.header?.menuHamburger,
-      //   },
-      //   tabs: {
-      //     background: object?.tabs?.background,
-      //     color: object?.tabs?.color,
-      //   },
-      //   button: {
-      //     background: object?.button?.background,
-      //     color: object?.button?.color,
-      //   },
-      // });
       vendorSettingsModel.layout = payload.toJSON()
       await vendorSettingsModel.save()
       return new Utils.Return(true, null)
