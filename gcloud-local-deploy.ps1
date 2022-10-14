@@ -21,7 +21,7 @@ $GCLOUD_LOCATION="us-central1"
 $NAME="vendors"
 $TYPE="microservice"
 $PACKAGE_VERSION="latest"
-docker buildx build -o type=registry --cache-to=type=registry --cache-from=type=registry --build-arg BUILDKIT_INLINE_CACHE=1 -t us-central1-docker.pkg.dev/$projectid/docker/orders-microservice-image:latest . --build-arg GOOGLE_SERVICE_ACCOUNT="$env:GOOGLE_SERVICE_ACCOUNT"  --build-arg NODEENV=devlopment --build-arg PROJECT_ID=$projectid $nocache
+docker buildx build -o type=registry --cache-to=type=registry --cache-from=type=registry --build-arg BUILDKIT_INLINE_CACHE=1 -t $GCLOUD_LOCATION-docker.pkg.dev/$projectid/docker/$NAME-$TYPE-image:$PACKAGE_VERSION . --build-arg GOOGLE_SERVICE_ACCOUNT="$env:GOOGLE_SERVICE_ACCOUNT"  --build-arg NODEENV=devlopment --build-arg PROJECT_ID=$projectid $nocache
 # docker build -t us-central1-docker.pkg.dev/$projectid/docker/gateway-microservice-image:latest . --build-arg GOOGLE_SERVICE_ACCOUNT="$env:GOOGLE_SERVICE_ACCOUNT"  --build-arg NODEENV=devlopment --build-arg PROJECT_ID=$projectid $nocache
 ThrowOnNativeFailure
 
