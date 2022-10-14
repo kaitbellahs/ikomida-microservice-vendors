@@ -172,6 +172,7 @@ export default class Settings {
   }
 
   async updateProfile(identity: Types.Classes.CUser, input: any) {
+    let transaction: Domain.SqlDB.Transaction | undefined = undefined
     try {
       const payload: Types.Classes.CVendorProfile = Types.Classes.CVendorProfile.fromObject(input)
       if (!payload.validate()) {
@@ -248,27 +249,36 @@ export default class Settings {
           )
         }
       }
-      await vendorSettingsModel.save()
+      transaction = await Domain.SqlDB.sequelize.transaction({
+        autocommit: false
+      })
+      await vendorSettingsModel.save({ transaction })
       const AddressModel = contractModel?.addresses?.[0]
       const address = payload?.address
       if (Logics.Validations.validateAddress(address)) {
-        await AddressModel?.destroy()
-        await contractModel.$create('address', {
-          kind: Types.Types.TAddress.PROFESSIONAL,
-          role: BackendTypes.Roles.VENDOR,
-          postalCode: address?.postalCode,
-          street: address?.street,
-          number: address?.number,
-          complement: address?.complement,
-          neighborhood: address?.neighborhood,
-          city: address?.city,
-          distance: 0,
-          duration: 0,
-          stat: address?.stat
-        })
+        await AddressModel?.destroy({ transaction })
+        await contractModel.$create(
+          'address',
+          {
+            kind: Types.Types.TAddress.PROFESSIONAL,
+            role: BackendTypes.Roles.VENDOR,
+            postalCode: address?.postalCode,
+            street: address?.street,
+            number: address?.number,
+            complement: address?.complement,
+            neighborhood: address?.neighborhood,
+            city: address?.city,
+            distance: 0,
+            duration: 0,
+            stat: address?.stat
+          },
+          { transaction }
+        )
       }
+      await transaction.commit()
       return new Utils.Return(true, null)
     } catch (exception: any) {
+      await transaction?.rollback()
       const error = new Utils.iKomidaError(
         Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_PROFILE_UPLOAD_Image_EXCEPTION,
         exception
@@ -332,7 +342,8 @@ export default class Settings {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_INTEGRATE_PAGSEGURO_EMPTY)
         return error.logAndReturn(this.logger)
       }
-      let vendorPaymentGatewayModel = vendorSettingsModel?.vendorPaymentGateway
+      let vendorPaymentGatewayModel: DBModels.VendorPaymentGatewayModel | undefined =
+        vendorSettingsModel?.vendorPaymentGateway
       if (vendorPaymentGatewayModel) {
         vendorPaymentGatewayModel.data = undefined
       }
@@ -358,9 +369,9 @@ export default class Settings {
       } else {
         vendorPaymentGatewayModel = (await vendorSettingsModel.$create('vendorPaymentGateway', {
           gateway: GateWays.PagSeguro.name,
-          data: gatewayData
+          data: gatewayData,
+          contractId: contractModel.id
         })) as DBModels.VendorPaymentGatewayModel
-        await contractModel.$set('vendorPaymentGateway', vendorPaymentGatewayModel)
       }
       return new Utils.Return(
         true,
@@ -433,8 +444,8 @@ export default class Settings {
       if (vendorPaymentGatewayModel) {
         const pagseguroHelper = new Helpers.PagseguroHelper(this.logger)
         const paymentGateway = (await pagseguroHelper.configure(vendorPaymentGatewayModel)) as GateWays.PagSeguro
-        await vendorPaymentGatewayModel?.destroy()
         await paymentGateway?.revokeToken()
+        await vendorPaymentGatewayModel?.destroy()
       }
       return new Utils.Return(
         true,
