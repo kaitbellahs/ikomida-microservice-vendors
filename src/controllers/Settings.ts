@@ -609,8 +609,7 @@ export default class Settings {
           where: {
             createdAt: {
               [Domain.SqlDB.Op.gte]: contractModel.contractPaymentSignature?.lastDueDate
-            },
-            vendor: true
+            }
           }
         })) ?? 0
       const orders =
