@@ -8,6 +8,7 @@ import {
   Types,
   DBModels
 } from '@ikomida/shared-backend'
+import { IiKomidaErrorModel } from '@ikomida/shared-backend/lib/Utils/iKomidaError'
 
 const host: any = {
   development: 'https://dev.ikomida.com/',
@@ -20,6 +21,12 @@ export default class Staff {
   limit = 10
   logger
   host
+
+  private IKOMIDA_RESELLER_SERVICE_NEW_STAFF_CANT_SEND_EMAIL: IiKomidaErrorModel = {
+    code: 'IMV001',
+    message:
+      'Não foi possível enviar o email de boas vinda e senha, a operação será cancelada, tente novamente em instante ou nos contate.!'
+  }
 
   constructor(logger: Utils.Logger) {
     this.randCodes = new Utils.RandCodes()
@@ -218,7 +225,7 @@ export default class Staff {
         }
       })
       const staffLimit = contractModel?.plan?.staff ?? -1
-      if (staffLimit !== 0 && (countUsers ?? 0) >= staffLimit) {
+      if (staffLimit !== -1 && (countUsers ?? 0) >= staffLimit) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_NEW_STAFF_LIMIT_EXCEEDED, staffLimit)
       }
       countUsers = await contractModel?.$count('users', {
@@ -276,28 +283,25 @@ export default class Staff {
           'iKomida',
           this.host
         )
-        const emailPayload = new Types.Classes.CAMQPPayload<Types.Classes.CEmail>({
-          method: 'send',
-          object: {
-            from: {
-              email: `no-replay@ikomida.com`,
-              name: `iKomida`
-            },
-            to: {
-              email: userModel?.email,
-              name: `${userModel?.name} ${userModel?.lastName}`
-            },
-            message
-          }
+        const emailPayload = new Types.Classes.CAMQPPayload<Types.Classes.CAMQPPayloadObject>()
+        emailPayload.method = 'send'
+        const messagePayload: Types.Classes.CEmail = Types.Classes.CEmail.fromObject({
+          from: {
+            email: `no-replay@ikomida.com`,
+            name: `iKomida`
+          },
+          to: {
+            email: userModel?.email,
+            name: `${userModel?.name} ${userModel?.lastName}`
+          },
+          message
         })
+        emailPayload.object = messagePayload
         const amqp = new Domain.RabbitMQ(this.logger)
         await amqp?.publish(Domain.RabbitMQ.EMAIL_QUEUE, emailPayload)
         await amqp?.close()
       } catch (exception: any) {
-        throw new Utils.iKomidaError(
-          Utils.iKomidaError.IKOMIDA_ORDERS_SERVICE_PAGSEGURO_WEBHOOK_PUSH_NOTIFICATION_EXCEPTION_2,
-          exception
-        )
+        throw new Utils.iKomidaError(this.IKOMIDA_RESELLER_SERVICE_NEW_STAFF_CANT_SEND_EMAIL, exception)
       }
       await transaction.commit()
       return new Utils.Return(true)
