@@ -220,35 +220,13 @@ export default class Settings {
       }
       vendorSettingsModel.email = payload?.email
       vendorSettingsModel.phone = payload?.phone
-      vendorSettingsModel.restaurantImage = payload?.mainPicture
-      if (payload?.mainPicture?.includes('data:')) {
-        const [dataType, data] = payload.mainPicture.split(';')
-        let imageExtension = 'jpg'
-        if (dataType === 'image/png') {
-          imageExtension = 'png'
-        }
-        const [, base64Image] = data.split(',')
-        const imageUri = `${identity.ikomidaID}/vendor/profile/logo.${imageExtension}`
-        const buffer = Buffer?.from(base64Image, 'base64')
-        try {
-          vendorSettingsModel.restaurantImage =
-            (await this.googleAdmin?.uploadFileToStorage(
-              `${this.bucket}cdn.ikomida.com`,
-              buffer,
-              imageExtension,
-              imageUri,
-              {
-                ikomidaID: identity.ikomidaID,
-                type: 'image',
-                dir: 'vendor.profile'
-              }
-            )) ?? undefined
-        } catch (exception: any) {
-          new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_PROFILE_EXCEPTION, exception).log(
-            this.logger
-          )
-        }
-      }
+      vendorSettingsModel.restaurantImage = await this.googleAdmin.uploadToStorage(
+        identity,
+        'logo',
+        'image',
+        'vendorProfile',
+        payload?.mainPicture
+      )
       transaction = await Domain.SqlDB.sequelize.transaction({
         autocommit: false
       })
@@ -356,12 +334,13 @@ export default class Settings {
         return error.logAndReturn(this.logger)
       }
       const response = await paymentGateway.getAccessToken(payload?.code)
-      if (!response) {
+      if (!response || !(response instanceof Types.Classes.Pagseguro.CPagSeguroGetAccessTokenResponse)) {
         const error = new Utils.iKomidaError(
           Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_INTEGRATE_PAGSEGURO_EMPTY_RESPONSE
         )
         return error.logAndReturn(this.logger)
       }
+
       const gatewayData = response.toJSON()
       if (vendorPaymentGatewayModel) {
         vendorPaymentGatewayModel.data = gatewayData
