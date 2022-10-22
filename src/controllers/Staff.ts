@@ -6,63 +6,69 @@ import {
   passwordGenerator,
   Logics,
   Types,
-  DBModels,
-} from '@ikomida/shared-backend';
+  DBModels
+} from '@ikomida/shared-backend'
+import { IiKomidaErrorModel } from '@ikomida/shared-backend/lib/Utils/iKomidaError'
 
 const host: any = {
   development: 'https://dev.ikomida.com/',
   homologation: 'https://hmlg.ikomida.com/',
-  production: 'https://ikomida.com/',
+  production: 'https://ikomida.com/'
 }
 
 export default class Staff {
-  randCodes;
-  limit = 10;
-  logger;
+  randCodes
+  limit = 10
+  logger
   host
 
+  private IKOMIDA_RESELLER_SERVICE_NEW_STAFF_CANT_SEND_EMAIL: IiKomidaErrorModel = {
+    code: 'IMV001',
+    message:
+      'Não foi possível enviar o email de boas vinda e senha, a operação será cancelada, tente novamente em instante ou nos contate.!'
+  }
+
   constructor(logger: Utils.Logger) {
-    this.randCodes = new Utils.RandCodes();
-    this.logger = logger;
-    this.host = host[process.env.NODE_ENV ?? 'development'];
+    this.randCodes = new Utils.RandCodes()
+    this.logger = logger
+    this.host = host[process.env.NODE_ENV ?? 'development']
   }
 
   async getStaff(identity: Types.Classes.CUser, timestamp: number) {
     try {
-      const role = BackendTypes.Roles.valueOf(identity.role);
+      const role = BackendTypes.Roles.valueOf(identity.role)
       if (!role || ![BackendTypes.Roles.VENDOR, BackendTypes.Roles.ADMIN].includes(role)) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLERS_UNAUTHORIZED);
-        return error.logAndReturn(this.logger);
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLERS_UNAUTHORIZED)
       }
-      let staff;
+      let staff
       const where =
         timestamp && timestamp != 0 && Number(Logics.Finances.toNumber(timestamp)) == timestamp
           ? {
-            createdAt: {
-              [Domain.SqlDB.Op.lt]: new Date(Number(Logics.Finances.toNumber(timestamp))),
-            },
-          }
-          : null;
+              createdAt: {
+                [Domain.SqlDB.Op.lt]: new Date(Number(Logics.Finances.toNumber(timestamp)))
+              }
+            }
+          : null
       if (BackendTypes.Roles.ADMIN === role) {
         const staffModels = await DBModels.UserModel.findAll({
           where: {
             ...{
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.STAFF, BackendTypes.Roles.VENDOR],
-              },
+                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.STAFF, BackendTypes.Roles.VENDOR]
+              }
             },
-            ...where,
+            ...where
           },
           order: [['createdAt', 'DESC']],
           limit: this.limit,
           include: [
             {
               model: DBModels.ContractModel,
-              required: true,
-            },
-          ],
-        });
-        staff = staffModels.map((staffModel) => {
+              required: true
+            }
+          ]
+        })
+        staff = staffModels.map(staffModel => {
           return Types.Classes.CUser.init(
             staffModel.role?.id ?? '',
             staffModel.name ?? '',
@@ -90,13 +96,13 @@ export default class Staff {
             undefined,
             undefined,
             staffModel.id,
-            staffModel.createdAt.getTime(),
-          );
-        });
+            staffModel.createdAt.getTime()
+          )
+        })
       } else {
         const contractModel = await DBModels.ContractModel.findOne({
           where: {
-            ikomidaID: identity.ikomidaID,
+            ikomidaID: identity.ikomidaID
           },
           include: [
             {
@@ -104,30 +110,29 @@ export default class Staff {
               where: {
                 id: identity.id,
                 role: {
-                  [Domain.SqlDB.Op.in]: [BackendTypes.Roles.STAFF, BackendTypes.Roles.VENDOR],
-                },
+                  [Domain.SqlDB.Op.in]: [BackendTypes.Roles.STAFF, BackendTypes.Roles.VENDOR]
+                }
               },
-              required: true,
-            },
-          ],
-        });
+              required: true
+            }
+          ]
+        })
         if ((contractModel?.users?.length ?? 0) !== 1) {
-          const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLER_INVALID_USER);
-          return error.logAndReturn(this.logger);
+          throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLER_INVALID_USER)
         }
         const userModels = await contractModel?.$get('users', {
           where: {
             ...where,
             ...{
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.STAFF, BackendTypes.Roles.VENDOR],
-              },
-            },
+                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.STAFF, BackendTypes.Roles.VENDOR]
+              }
+            }
           },
           order: [['createdAt', 'DESC']],
-          limit: this.limit,
-        });
-        staff = userModels?.map((staffModel) => {
+          limit: this.limit
+        })
+        staff = userModels?.map(staffModel => {
           return Types.Classes.CUser.init(
             staffModel.role?.id ?? '',
             staffModel.name ?? '',
@@ -155,27 +160,33 @@ export default class Staff {
             undefined,
             undefined,
             staffModel.id,
-            staffModel.createdAt.getTime(),
-          );
-        });
+            staffModel.createdAt.getTime()
+          )
+        })
       }
       return new Utils.Return(
         true,
-        staff?.sort((item1, item2) => (item2?.timestamp ?? 0) - (item1?.timestamp ?? 0)),
-      );
+        staff?.sort((item1, item2) => (item2?.timestamp ?? 0) - (item1?.timestamp ?? 0))
+      )
     } catch (exception: any) {
-      const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLER_EXCEPTION, exception?.message);
-      return error.logAndReturn(this.logger);
+      let error = new Utils.iKomidaError(
+        Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLER_EXCEPTION,
+        exception?.message
+      )
+      if (exception instanceof Utils.iKomidaError) {
+        error = exception
+      }
+      return error.logAndReturn(this.logger)
     }
   }
 
   async newStaff(identity: Types.Classes.CUser, object: any) {
+    let transaction: Domain.SqlDB.Transaction | undefined = undefined
     try {
-      const staff: Types.Classes.CUser = Types.Classes.CUser.fromObject(object);
-      const role = BackendTypes.Roles.valueOf(identity.role);
+      const staff: Types.Classes.CUser = Types.Classes.CUser.fromObject(object)
+      const role = BackendTypes.Roles.valueOf(identity.role)
       if (!role || ![BackendTypes.Roles.VENDOR, BackendTypes.Roles.ADMIN].includes(role)) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED);
-        return error.logAndReturn(this.logger);
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
       }
       //TODO: add validation
       // if (!staff.validate()) {
@@ -184,7 +195,7 @@ export default class Staff {
       // }
       const contractModel = await DBModels.ContractModel.findOne({
         where: {
-          ikomidaID: identity?.ikomidaID,
+          ikomidaID: identity?.ikomidaID
         },
         include: [
           {
@@ -192,131 +203,133 @@ export default class Staff {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF],
-              },
+                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+              }
             },
-            required: true,
+            required: true
           },
           {
             model: DBModels.PlanModel,
-            required: true,
-          },
-        ],
-      });
+            required: true
+          }
+        ]
+      })
       if ((contractModel?.users?.length ?? 0) !== 1) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER);
-        return error.logAndReturn(this.logger);
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
       }
       let countUsers = await contractModel?.$count('users', {
         where: {
           role: {
-            [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF],
-          },
-        },
-      });
-      const staffLimit = contractModel?.plan?.staff ?? -1;
-      if (staffLimit !== 0 && (countUsers ?? 0) >= staffLimit) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_NEW_STAFF_LIMIT_EXCEEDED, staffLimit);
-        return error.logAndReturn(this.logger);
+            [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+          }
+        }
+      })
+      const staffLimit = contractModel?.plan?.staff ?? -1
+      if (staffLimit !== -1 && (countUsers ?? 0) >= staffLimit) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_NEW_STAFF_LIMIT_EXCEEDED, staffLimit)
       }
       countUsers = await contractModel?.$count('users', {
         where: {
           role: {
-            [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF],
+            [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
           },
           [Domain.SqlDB.Op.or]: [
             {
-              email: staff?.email,
+              email: staff?.email
             },
             {
               areaCode: Logics.Finances.toNumber(staff?.areaCode),
-              phone: Logics.Finances.toNumber(staff?.phone),
+              phone: Logics.Finances.toNumber(staff?.phone)
             },
             {
-              identity: Logics.Finances.toNumber(staff?.identity),
-            },
-          ],
-        },
-      });
-      if (countUsers !== 0) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_USED_USER);
-        return error.logAndReturn(this.logger);
-      }
-      const newPassword = passwordGenerator(8);
-      const userModel: DBModels.UserModel | undefined = await contractModel?.$create('user', {
-        role: BackendTypes.Roles.STAFF,
-        name: staff?.name,
-        lastName: staff?.lastName,
-        email: staff?.email,
-        identity: Logics.Finances.toNumber(staff?.identity),
-        phone: Logics.Finances.toNumber(staff?.phone),
-        areaCode: Logics.Finances.toNumber(staff?.areaCode),
-        password: (await cryptPassword(newPassword)).hash,
-      });
-      if (!userModel) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_CREATE_USER_DB_ERROR);
-        return error.logAndReturn(this.logger);
-      }
-      if (userModel) {
-        try {
-          const message = new Utils.Email(
-            Utils.Email.STAFF_REGISTRATION_SUCCESSFULL,
-            'iKomida dashboard',
-            userModel?.name,
-            contractModel?.contractName,
-            `${this.host}/apps`,
-            userModel?.phone,
-            newPassword,
-            'iKomida',
-            this.host,
-          );
-          const emailPayload = new Types.Classes.CAMQPPayload<Types.Classes.CEmail>({
-            method: 'send',
-            object: {
-              from: {
-                email: `no-replay@ikomida.com`,
-                name: `iKomida`,
-              },
-              to: {
-                email: userModel?.email,
-                name: `${userModel?.name} ${userModel?.lastName}`,
-              },
-              message,
-            },
-          });
-          const amqp = new Domain.RabbitMQ(this.logger);
-          await amqp?.publish(Domain.RabbitMQ.EMAIL_QUEUE, emailPayload);
-          await amqp?.close();
-        } catch (exception: any) {
-          const error = new Utils.iKomidaError(
-            Utils.iKomidaError.IKOMIDA_ORDERS_SERVICE_PAGSEGURO_WEBHOOK_PUSH_NOTIFICATION_EXCEPTION_2,
-            exception,
-          );
-          error.log(this.logger);
+              identity: Logics.Finances.toNumber(staff?.identity)
+            }
+          ]
         }
-        return new Utils.Return(true);
+      })
+      if (countUsers !== 0) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_USED_USER)
       }
-      return new Utils.Return(true);
+      const newPassword = passwordGenerator(8)
+      transaction = await Domain.SqlDB.sequelize.transaction({
+        autocommit: false
+      })
+      const userModel: DBModels.UserModel | undefined = await contractModel?.$create(
+        'user',
+        {
+          role: BackendTypes.Roles.STAFF,
+          name: staff?.name,
+          lastName: staff?.lastName,
+          email: staff?.email,
+          identity: Logics.Finances.toNumber(staff?.identity),
+          phone: Logics.Finances.toNumber(staff?.phone),
+          areaCode: Logics.Finances.toNumber(staff?.areaCode),
+          password: (await cryptPassword(newPassword)).hash
+        },
+        { transaction }
+      )
+      if (!userModel) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_CREATE_USER_DB_ERROR)
+      }
+      try {
+        const message = new Utils.Email(
+          Utils.Email.STAFF_REGISTRATION_SUCCESSFULL,
+          'iKomida dashboard',
+          userModel?.name,
+          contractModel?.contractName,
+          `${this.host}/apps`,
+          userModel?.phone,
+          newPassword,
+          'iKomida',
+          this.host
+        )
+        const emailPayload = new Types.Classes.CAMQPPayload<Types.Classes.CAMQPPayloadObject>()
+        emailPayload.method = 'send'
+        const messagePayload: Types.Classes.CEmail = Types.Classes.CEmail.fromObject({
+          from: {
+            email: `no-replay@ikomida.com`,
+            name: `iKomida`
+          },
+          to: {
+            email: userModel?.email,
+            name: `${userModel?.name} ${userModel?.lastName}`
+          },
+          message
+        })
+        emailPayload.object = messagePayload
+        const amqp = new Domain.RabbitMQ(this.logger)
+        await amqp?.publish(Domain.RabbitMQ.EMAIL_QUEUE, emailPayload)
+        await amqp?.close()
+      } catch (exception: any) {
+        throw new Utils.iKomidaError(this.IKOMIDA_RESELLER_SERVICE_NEW_STAFF_CANT_SEND_EMAIL, exception)
+      }
+      await transaction.commit()
+      return new Utils.Return(true)
     } catch (exception: any) {
-      const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_EXCEPTION, exception?.message);
-      return error.logAndReturn(this.logger);
+      await transaction?.rollback()
+      let error = new Utils.iKomidaError(
+        Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_EXCEPTION,
+        exception?.message
+      )
+      if (exception instanceof Utils.iKomidaError) {
+        error = exception
+      }
+      return error.logAndReturn(this.logger)
     }
   }
 
   async removeStaff(identity: Types.Classes.CUser, id: string) {
     try {
-      const role = BackendTypes.Roles.valueOf(identity.role);
+      const role = BackendTypes.Roles.valueOf(identity.role)
       if (!role || ![BackendTypes.Roles.VENDOR, BackendTypes.Roles.ADMIN].includes(role)) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED);
-        return error.logAndReturn(this.logger);
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
       }
       if (!Logics.Validations.validateUUID(id)) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_MISSING_DATA);
-        return error.logAndReturn(this.logger);
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_MISSING_DATA)
       }
       const contractModel = await DBModels.ContractModel.findOne({
         where: {
-          ikomidaID: identity?.ikomidaID,
+          ikomidaID: identity?.ikomidaID
         },
         include: [
           {
@@ -324,31 +337,35 @@ export default class Staff {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF],
-              },
+                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+              }
             },
-            required: true,
-          },
-        ],
-      });
+            required: true
+          }
+        ]
+      })
       if ((contractModel?.users?.length ?? 0) !== 1) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER);
-        return error.logAndReturn(this.logger);
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
       }
       const staffModels = await contractModel?.$get('users', {
         where: {
-          [Domain.SqlDB.Op.and]: [{ id: { [Domain.SqlDB.Op.not]: identity.id } }, { id }],
-        },
-      });
+          [Domain.SqlDB.Op.and]: [{ id: { [Domain.SqlDB.Op.not]: identity.id } }, { id }]
+        }
+      })
       if ((staffModels?.length ?? 0) !== 1) {
-        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER);
-        return error.logAndReturn(this.logger);
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
       }
-      await staffModels?.[0].destroy();
-      return new Utils.Return(true);
+      await staffModels?.[0].destroy()
+      return new Utils.Return(true)
     } catch (exception: any) {
-      const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_ADMIN_SERVICE_DELETE_SETTING_EXCEPTION, exception?.message);
-      return error.logAndReturn(this.logger);
+      let error = new Utils.iKomidaError(
+        Utils.iKomidaError.IKOMIDA_ADMIN_SERVICE_DELETE_SETTING_EXCEPTION,
+        exception?.message
+      )
+      if (exception instanceof Utils.iKomidaError) {
+        error = exception
+      }
+      return error.logAndReturn(this.logger)
     }
   }
 
