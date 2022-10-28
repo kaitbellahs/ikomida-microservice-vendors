@@ -225,7 +225,8 @@ export default class Settings {
         'logo',
         'image',
         'vendorProfile',
-        payload?.mainPicture
+        payload?.mainPicture,
+        vendorSettingsModel.restaurantImage
       )
       transaction = await Domain.SqlDB.sequelize.transaction({
         autocommit: false
@@ -233,7 +234,12 @@ export default class Settings {
       await vendorSettingsModel.save({ transaction })
       const AddressModel = contractModel?.addresses?.[0]
       const address = payload?.address
-      if (Logics.Validations.validateAddress(address)) {
+      if (
+        (AddressModel?.postalCode !== address.postalCode ||
+          AddressModel?.number !== address.number ||
+          AddressModel?.complement !== address.complement) &&
+        Logics.Validations.validateAddress(address)
+      ) {
         await AddressModel?.destroy({ transaction })
         await contractModel.$create(
           'address',
