@@ -8,7 +8,7 @@ import {
   Types,
   DBModels
 } from '@ikomida/shared-backend'
-import { IiKomidaErrorModel } from '@ikomida/shared-backend/lib/Utils/iKomidaError'
+import { IiKomidaErrorModel } from '@ikomida/shared-backend/lib/src/Utils/iKomidaError'
 
 const host: any = {
   development: 'https://dev.ikomida.com/',
