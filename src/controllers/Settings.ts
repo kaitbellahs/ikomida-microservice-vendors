@@ -9,7 +9,6 @@ import {
   DBModels,
   objHasProp
 } from '@ikomida/shared-backend'
-import { Buffer } from 'buffer'
 
 const bucket: any = {
   development: 'dev.',
@@ -114,7 +113,9 @@ export default class Settings {
         preparation: Types.Classes.CVendorPreparation.init(
           vendorSettingsModel?.preparationMin ?? 0,
           vendorSettingsModel?.preparationMax ?? 0
-        )
+        ),
+        orderTypes: vendorSettingsModel?.orderTypes,
+        tip: vendorSettingsModel?.tip
       })
       return new Utils.Return(true, object)
     } catch (exception: any) {
@@ -546,6 +547,9 @@ export default class Settings {
           Logics.Finances.toFinanceNumber(vendorSettings?.preparation?.min) ?? vendorSettingsModel.preparationMin
         vendorSettingsModel.preparationMax =
           Logics.Finances.toFinanceNumber(vendorSettings?.preparation?.max) ?? vendorSettingsModel.preparationMax
+        console.log('vendorSettings?.orderTypes:', vendorSettings?.orderTypes)
+        vendorSettingsModel.orderTypes = vendorSettings?.orderTypes ?? vendorSettingsModel.orderTypes
+        vendorSettingsModel.tip = Logics.Finances.toFinanceNumber(vendorSettings?.tip) ?? vendorSettingsModel.tip
       }
       await vendorSettingsModel.save()
       return new Utils.Return(true, null)
