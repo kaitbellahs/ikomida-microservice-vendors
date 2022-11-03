@@ -95,6 +95,8 @@ export default class Staff {
             undefined,
             undefined,
             undefined,
+            undefined,
+            undefined,
             staffModel.id,
             staffModel.createdAt.getTime()
           )
@@ -156,6 +158,8 @@ export default class Staff {
             undefined,
             undefined,
             staffModel.avatar,
+            undefined,
+            undefined,
             undefined,
             undefined,
             undefined,
