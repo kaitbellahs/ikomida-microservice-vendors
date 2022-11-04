@@ -8,7 +8,7 @@ import {
   Types,
   DBModels
 } from '@ikomida/shared-backend'
-import { IiKomidaErrorModel } from '@ikomida/shared-backend/lib/Utils/iKomidaError'
+import { IiKomidaErrorModel } from '@ikomida/shared-backend/lib/src/Utils/iKomidaError'
 
 const host: any = {
   development: 'https://dev.ikomida.com/',
@@ -95,6 +95,8 @@ export default class Staff {
             undefined,
             undefined,
             undefined,
+            undefined,
+            undefined,
             staffModel.id,
             staffModel.createdAt.getTime()
           )
@@ -156,6 +158,8 @@ export default class Staff {
             undefined,
             undefined,
             staffModel.avatar,
+            undefined,
+            undefined,
             undefined,
             undefined,
             undefined,
