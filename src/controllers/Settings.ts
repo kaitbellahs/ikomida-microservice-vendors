@@ -93,7 +93,14 @@ export default class Settings {
             addressModel?.number,
             addressModel?.complement,
             addressModel?.kind,
-            addressModel?.reference
+            addressModel?.reference,
+            undefined,
+            undefined,
+            undefined,
+            Types.Classes.CLocation.fromObject({
+              latitude: addressModel?.coordinates?.coordinates?.[0],
+              longitude: addressModel?.coordinates?.coordinates?.[1]
+            })
           ),
           vendorSettingsModel?.restaurantImage
         ),
@@ -241,6 +248,7 @@ export default class Settings {
           AddressModel?.complement !== address.complement) &&
         Logics.Validations.validateAddress(address)
       ) {
+        const location: Types.Classes.CLocation = await Utils.GoogleAdmin.getGeocoding(address)
         await AddressModel?.destroy({ transaction })
         await contractModel.$create(
           'address',
@@ -255,7 +263,11 @@ export default class Settings {
             city: address?.city,
             distance: 0,
             duration: 0,
-            stat: address?.stat
+            stat: address?.stat,
+            coordinates: BackendTypes.CGeometry.init(BackendTypes.TGeometry.POINT, [
+              location.latitude ?? 0,
+              location.longitude ?? 0
+            ]).toJSON()
           },
           { transaction }
         )
