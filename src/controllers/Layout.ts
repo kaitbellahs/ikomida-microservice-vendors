@@ -48,7 +48,7 @@ export default class Layout {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
               }
             }
           },

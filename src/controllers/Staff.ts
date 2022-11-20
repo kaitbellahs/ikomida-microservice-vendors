@@ -36,25 +36,25 @@ export default class Staff {
 
   async getStaff(identity: Types.Classes.CUser, timestamp: number) {
     try {
-      const role = BackendTypes.Roles.valueOf(identity.role)
-      if (!role || ![BackendTypes.Roles.VENDOR, BackendTypes.Roles.ADMIN].includes(role)) {
+      const role = identity.role
+      if (!role || ![Types.Types.TRoles.VENDOR, Types.Types.TRoles.ADMIN].includes(role)) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLERS_UNAUTHORIZED)
       }
       let staff
       const where =
         timestamp && timestamp != 0 && Number(Logics.Finances.toNumber(timestamp)) == timestamp
           ? {
-              createdAt: {
-                [Domain.SqlDB.Op.lt]: new Date(Number(Logics.Finances.toNumber(timestamp)))
-              }
+            createdAt: {
+              [Domain.SqlDB.Op.lt]: new Date(Number(Logics.Finances.toNumber(timestamp)))
             }
+          }
           : null
-      if (BackendTypes.Roles.ADMIN === role) {
+      if (Types.Types.TRoles.ADMIN === role) {
         const staffModels = await DBModels.UserModel.findAll({
           where: {
             ...{
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.STAFF, BackendTypes.Roles.VENDOR]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.STAFF, Types.Types.TRoles.VENDOR]
               }
             },
             ...where
@@ -70,7 +70,7 @@ export default class Staff {
         })
         staff = staffModels.map(staffModel => {
           return Types.Classes.CUser.init(
-            staffModel.role?.id ?? '',
+            staffModel.role ?? Types.Types.TRoles.STAFF,
             staffModel.name ?? '',
             staffModel.lastName ?? '',
             staffModel.identity ?? '',
@@ -112,7 +112,7 @@ export default class Staff {
               where: {
                 id: identity.id,
                 role: {
-                  [Domain.SqlDB.Op.in]: [BackendTypes.Roles.STAFF, BackendTypes.Roles.VENDOR]
+                  [Domain.SqlDB.Op.in]: [Types.Types.TRoles.STAFF, Types.Types.TRoles.VENDOR]
                 }
               },
               required: true
@@ -127,7 +127,7 @@ export default class Staff {
             ...where,
             ...{
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.STAFF, BackendTypes.Roles.VENDOR]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.STAFF, Types.Types.TRoles.VENDOR]
               }
             }
           },
@@ -136,7 +136,7 @@ export default class Staff {
         })
         staff = userModels?.map(staffModel => {
           return Types.Classes.CUser.init(
-            staffModel.role?.id ?? '',
+            staffModel.role ?? Types.Types.TRoles.STAFF,
             staffModel.name ?? '',
             staffModel.lastName ?? '',
             staffModel.identity ?? '',
@@ -188,8 +188,8 @@ export default class Staff {
     let transaction: Domain.SqlDB.Transaction | undefined = undefined
     try {
       const staff: Types.Classes.CUser = Types.Classes.CUser.fromObject(object)
-      const role = BackendTypes.Roles.valueOf(identity.role)
-      if (!role || ![BackendTypes.Roles.VENDOR, BackendTypes.Roles.ADMIN].includes(role)) {
+      const role = identity.role
+      if (!role || ![Types.Types.TRoles.VENDOR, Types.Types.TRoles.ADMIN].includes(role)) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
       }
       //TODO: add validation
@@ -207,7 +207,7 @@ export default class Staff {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+                [Domain.SqlDB.Op.in]: Types.Types.TRoles.vendors
               }
             },
             required: true
@@ -224,7 +224,7 @@ export default class Staff {
       let countUsers = await contractModel?.$count('users', {
         where: {
           role: {
-            [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+            [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
           }
         }
       })
@@ -235,7 +235,7 @@ export default class Staff {
       countUsers = await contractModel?.$count('users', {
         where: {
           role: {
-            [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+            [Domain.SqlDB.Op.in]: Types.Types.TRoles.vendors
           },
           [Domain.SqlDB.Op.or]: [
             {
@@ -261,13 +261,13 @@ export default class Staff {
       const userModel: DBModels.UserModel | undefined = await contractModel?.$create(
         'user',
         {
-          role: BackendTypes.Roles.STAFF,
-          name: staff?.name,
-          lastName: staff?.lastName,
-          email: staff?.email,
-          identity: Logics.Finances.toNumber(staff?.identity),
-          phone: Logics.Finances.toNumber(staff?.phone),
-          areaCode: Logics.Finances.toNumber(staff?.areaCode),
+          role: staff.role,
+          name: staff.name,
+          lastName: staff.lastName,
+          email: staff.email,
+          identity: Logics.Finances.toNumber(staff.identity),
+          phone: Logics.Finances.toNumber(staff.phone),
+          areaCode: Logics.Finances.toNumber(staff.areaCode),
           password: (await cryptPassword(newPassword)).hash
         },
         { transaction }
@@ -324,8 +324,8 @@ export default class Staff {
 
   async removeStaff(identity: Types.Classes.CUser, id: string) {
     try {
-      const role = BackendTypes.Roles.valueOf(identity.role)
-      if (!role || ![BackendTypes.Roles.VENDOR, BackendTypes.Roles.ADMIN].includes(role)) {
+      const role = identity.role
+      if (!role || ![Types.Types.TRoles.VENDOR, Types.Types.TRoles.ADMIN].includes(role)) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
       }
       if (!Logics.Validations.validateUUID(id)) {
@@ -341,7 +341,7 @@ export default class Staff {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
               }
             },
             required: true
@@ -376,7 +376,7 @@ export default class Staff {
   // async countStaffs(identity: Types.Classes.CUser) {
   //     const bonusLevels = [5, 3, 1]
   //     try {
-  //         if (![BackendTypes.Roles.VENDOR, BackendTypes.Roles.ADMIN].includes(identity.role)) {
+  //         if (![Types.Types.TRoles.VENDOR, Types.Types.TRoles.ADMIN].includes(identity.role)) {
   //             const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
   //             return error.logAndReturn(this.logger)
   //         }
