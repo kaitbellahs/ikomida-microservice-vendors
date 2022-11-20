@@ -37,7 +37,7 @@ export default class Settings {
           {
             model: DBModels.AddressModel,
             where: {
-              role: BackendTypes.Roles.VENDOR
+              role: Types.Types.TRoles.VENDOR
             },
             required: false,
             order: [['createdAt', 'DESC']],
@@ -49,7 +49,7 @@ export default class Settings {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
               }
             }
           },
@@ -115,6 +115,7 @@ export default class Settings {
         delivery: Types.Classes.CVendorDelivery.init(
           vendorSettingsModel?.deliveryFree ?? false,
           vendorSettingsModel?.delivery ?? 0,
+          vendorSettingsModel?.orderMinValue ?? 0,
           vendorSettingsModel?.deliveryMin ?? 0
         ),
         preparation: Types.Classes.CVendorPreparation.init(
@@ -155,7 +156,7 @@ export default class Settings {
           where: {
             id: identity.id,
             role: {
-              [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR]
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR]
             }
           }
         }
@@ -195,7 +196,7 @@ export default class Settings {
           {
             model: DBModels.AddressModel,
             where: {
-              role: BackendTypes.Roles.VENDOR
+              role: Types.Types.TRoles.VENDOR
             },
             required: false,
             order: [['createdAt', 'DESC']],
@@ -207,7 +208,7 @@ export default class Settings {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR]
               }
             }
           },
@@ -254,7 +255,7 @@ export default class Settings {
           'address',
           {
             kind: Types.Types.TAddress.PROFESSIONAL,
-            role: BackendTypes.Roles.VENDOR,
+            role: Types.Types.TRoles.VENDOR,
             postalCode: address?.postalCode,
             street: address?.street,
             number: address?.number,
@@ -312,7 +313,7 @@ export default class Settings {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
               }
             }
           },
@@ -409,7 +410,7 @@ export default class Settings {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
               }
             }
           },
@@ -478,7 +479,7 @@ export default class Settings {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
               }
             }
           },
@@ -530,7 +531,7 @@ export default class Settings {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
               }
             }
           },
@@ -554,6 +555,8 @@ export default class Settings {
           Logics.Finances.toFinanceNumber(vendorSettings?.delivery?.value) ?? vendorSettingsModel.delivery
         vendorSettingsModel.deliveryMin =
           Logics.Finances.toFinanceNumber(vendorSettings?.delivery?.min) ?? vendorSettingsModel.deliveryMin
+        vendorSettingsModel.orderMinValue =
+          Logics.Finances.toFinanceNumber(vendorSettings?.delivery?.orderMinValue) ?? vendorSettingsModel.orderMinValue
         vendorSettingsModel.deliveryFree = vendorSettings?.delivery?.free ?? vendorSettingsModel.deliveryFree
         vendorSettingsModel.preparationMin =
           Logics.Finances.toFinanceNumber(vendorSettings?.preparation?.min) ?? vendorSettingsModel.preparationMin
@@ -588,7 +591,7 @@ export default class Settings {
             where: {
               id: identity.id,
               role: {
-                [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
               }
             }
           },
@@ -609,7 +612,7 @@ export default class Settings {
         (await contractModel?.$count('users', {
           where: {
             role: {
-              [Domain.SqlDB.Op.in]: [BackendTypes.Roles.VENDOR, BackendTypes.Roles.STAFF]
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
             }
           }
         })) ?? 0
