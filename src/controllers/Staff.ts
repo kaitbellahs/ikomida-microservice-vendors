@@ -44,10 +44,10 @@ export default class Staff {
       const where =
         timestamp && timestamp != 0 && Number(Logics.Finances.toNumber(timestamp)) == timestamp
           ? {
-            createdAt: {
-              [Domain.SqlDB.Op.lt]: new Date(Number(Logics.Finances.toNumber(timestamp)))
+              createdAt: {
+                [Domain.SqlDB.Op.lt]: new Date(Number(Logics.Finances.toNumber(timestamp)))
+              }
             }
-          }
           : null
       if (Types.Types.TRoles.ADMIN === role) {
         const staffModels = await DBModels.UserModel.findAll({
