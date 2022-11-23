@@ -3,6 +3,7 @@ import bodyParser from 'body-parser'
 import Settings from './controllers/Settings.js'
 import Layout from './controllers/Layout.js'
 import Staff from './controllers/Staff.js'
+import App from './controllers/App.js'
 import { Utils } from '@ikomida/shared-backend'
 
 import { createRequire } from 'module'
@@ -24,10 +25,23 @@ const port = process?.env?.PORT || 80
 const settings = new Settings(logger)
 const layout = new Layout(logger)
 const staff = new Staff(logger)
+const vendorApp = new App(logger)
 
 app.get('/vendor/limits', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
   const payload = await settings.getLimits(identity)
+  res.sendResponse(payload)
+})
+
+app.get('/vendor/app', async (req, res) => {
+  const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
+  const payload = await vendorApp.getApp(identity)
+  res.sendResponse(payload)
+})
+
+app.patch('/vendor/app', async (req, res) => {
+  const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
+  const payload = await vendorApp.updateApp(identity, req.body)
   res.sendResponse(payload)
 })
 
