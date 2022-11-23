@@ -10,21 +10,14 @@ import {
   objHasProp
 } from '@ikomida/shared-backend'
 
-const bucket: any = {
-  development: 'dev.',
-  homologation: 'hmlg.',
-  production: ''
-}
 
 export default class Settings {
   logger
   googleAdmin
-  bucket
 
   constructor(logger: Utils.Logger) {
     this.logger = logger
     this.googleAdmin = new Utils.GoogleAdmin(this.logger)
-    this.bucket = bucket[process.env.NODE_ENV ?? 'development']
   }
 
   async getSettings(identity: Types.Classes.CUser) {
