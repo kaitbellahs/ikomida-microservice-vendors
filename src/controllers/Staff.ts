@@ -193,10 +193,10 @@ export default class Staff {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
       }
       //TODO: add validation
-      // if (!staff.validate()) {
-      //   const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_MISSING_DATA);
-      //   return error.logAndReturn(this.logger);
-      // }
+      if (!Types.Types.TRoles.vendors.includes(staff.role)) {
+        const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_MISSING_DATA)
+        return error.logAndReturn(this.logger)
+      }
       const contractModel = await DBModels.ContractModel.findOne({
         where: {
           ikomidaID: identity?.ikomidaID
@@ -272,7 +272,7 @@ export default class Staff {
         },
         { transaction }
       )
-      if (!userModel) {
+      if (!userModel || !userModel.email) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_CREATE_USER_DB_ERROR)
       }
       try {
@@ -282,28 +282,19 @@ export default class Staff {
           userModel?.name,
           contractModel?.contractName,
           `${this.host}/apps`,
+          contractModel?.ikomidaID,
           userModel?.phone,
           newPassword,
-          'iKomida',
-          this.host
+          this.host,
+          'iKomida'
         )
-        const emailPayload = new Types.Classes.CAMQPPayload<Types.Classes.CAMQPPayloadObject>()
-        emailPayload.method = 'send'
-        const messagePayload: Types.Classes.CEmail = Types.Classes.CEmail.fromObject({
-          from: {
-            email: `no-replay@ikomida.com`,
-            name: `iKomida`
-          },
-          to: {
-            email: userModel?.email,
-            name: `${userModel?.name} ${userModel?.lastName}`
-          },
-          message
-        })
-        emailPayload.object = messagePayload
-        const amqp = new Domain.RabbitMQ(this.logger)
-        await amqp?.publish(Domain.RabbitMQ.EMAIL_QUEUE, emailPayload)
-        await amqp?.close()
+        await Utils.Email.sendEmail(
+          this.logger,
+          userModel.email,
+          `${userModel.name} ${userModel.lastName}`,
+          message,
+          'iKomida dashboard'
+        )
       } catch (exception: any) {
         throw new Utils.iKomidaError(this.IKOMIDA_RESELLER_SERVICE_NEW_STAFF_CANT_SEND_EMAIL, exception)
       }
