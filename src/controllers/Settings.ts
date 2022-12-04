@@ -10,7 +10,6 @@ import {
   objHasProp
 } from '@ikomida/shared-backend'
 
-
 export default class Settings {
   logger
   googleAdmin
