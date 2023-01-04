@@ -1,14 +1,6 @@
-import {
-  cryptPassword,
-  Domain,
-  Utils,
-  BackendTypes,
-  passwordGenerator,
-  Logics,
-  Types,
-  DBModels
-} from '@ikomida/shared-backend'
+import { cryptPassword, Domain, Utils, passwordGenerator, Logics, Types, DBModels } from '@ikomida/shared-backend'
 import { IiKomidaErrorModel } from '@ikomida/shared-backend/lib/src/Utils/iKomidaError'
+import { Classes } from '@ikomida/shared-types'
 
 const host: any = {
   development: 'https://dev.ikomida.com/',
@@ -34,7 +26,7 @@ export default class Staff {
     this.host = host[process.env.NODE_ENV ?? 'development']
   }
 
-  async getStaff(identity: Types.Classes.CUser, timestamp: number) {
+  async getStaff(identity: Types.Classes.CUser, timestamp: number, query?: Types.Interfaces.IMetadata) {
     try {
       const role = identity.role
       if (!role || ![Types.Types.TRoles.VENDOR, Types.Types.TRoles.ADMIN].includes(role)) {
@@ -44,12 +36,12 @@ export default class Staff {
       const where =
         timestamp && timestamp != 0 && Number(Logics.Finances.toNumber(timestamp)) == timestamp
           ? {
-              createdAt: {
-                [Domain.SqlDB.Op.lt]: new Date(Number(Logics.Finances.toNumber(timestamp)))
-              }
+            createdAt: {
+              [Domain.SqlDB.Op.lt]: new Date(Number(Logics.Finances.toNumber(timestamp)))
             }
+          }
           : null
-      if (Types.Types.TRoles.ADMIN === role) {
+      if (Types.Types.TRoles.ADMIN === role && !Logics.Validations.validateUUID(query?.contractId)) {
         const staffModels = await DBModels.UserModel.findAll({
           where: {
             ...{
@@ -102,22 +94,27 @@ export default class Staff {
           )
         })
       } else {
+        if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+          throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+        }
+        const include: Domain.SqlDB.Includeable[] = []
+        if (!Types.Types.TRoles.isInternal(identity.role)) {
+          include.push({
+            model: DBModels.UserModel,
+            required: true,
+            where: {
+              id: identity.id,
+              role: {
+                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
+              }
+            }
+          })
+        }
         const contractModel = await DBModels.ContractModel.findOne({
           where: {
             ikomidaID: identity.ikomidaID
           },
-          include: [
-            {
-              model: DBModels.UserModel,
-              where: {
-                id: identity.id,
-                role: {
-                  [Domain.SqlDB.Op.in]: [Types.Types.TRoles.STAFF, Types.Types.TRoles.VENDOR]
-                }
-              },
-              required: true
-            }
-          ]
+          include
         })
         if ((contractModel?.users?.length ?? 0) !== 1) {
           throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_GET_RESELLER_INVALID_USER)
@@ -168,7 +165,7 @@ export default class Staff {
           )
         })
       }
-      return new Utils.Return(
+      return new Classes.Return(
         true,
         staff?.sort((item1, item2) => (item2?.timestamp ?? 0) - (item1?.timestamp ?? 0))
       )
@@ -184,7 +181,7 @@ export default class Staff {
     }
   }
 
-  async newStaff(identity: Types.Classes.CUser, object: any) {
+  async newStaff(identity: Types.Classes.CUser, object: any, query?: Types.Interfaces.IMetadata) {
     let transaction: Domain.SqlDB.Transaction | undefined = undefined
     try {
       const staff: Types.Classes.CUser = Types.Classes.CUser.fromObject(object)
@@ -192,31 +189,42 @@ export default class Staff {
       if (!role || ![Types.Types.TRoles.VENDOR, Types.Types.TRoles.ADMIN].includes(role)) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_UNAUTHORIZED)
       }
+      if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+      }
       //TODO: add validation
       if (!Types.Types.TRoles.vendors.includes(staff.role)) {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_MISSING_DATA)
         return error.logAndReturn(this.logger)
       }
-      const contractModel = await DBModels.ContractModel.findOne({
-        where: {
-          ikomidaID: identity?.ikomidaID
-        },
-        include: [
-          {
-            model: DBModels.UserModel,
-            where: {
-              id: identity.id,
-              role: {
-                [Domain.SqlDB.Op.in]: Types.Types.TRoles.vendors
-              }
-            },
-            required: true
+      const include: Domain.SqlDB.Includeable[] = [
+        {
+          model: DBModels.PlanModel,
+          required: true
+        }
+      ]
+      if (!Types.Types.TRoles.isInternal(identity.role)) {
+        include.push({
+          model: DBModels.UserModel,
+          where: {
+            id: identity.id,
+            role: {
+              [Domain.SqlDB.Op.in]: Types.Types.TRoles.vendors
+            }
           },
-          {
-            model: DBModels.PlanModel,
-            required: true
-          }
-        ]
+          required: true
+        })
+      }
+      const contractModel = await DBModels.ContractModel.findOne({
+        where:
+          Types.Types.TRoles.isInternal(identity.role) && Logics.Validations.validateUUID(query?.contractId)
+            ? {
+              id: query?.contractId
+            }
+            : {
+              ikomidaID: identity?.ikomidaID
+            },
+        include
       })
       if ((contractModel?.users?.length ?? 0) !== 1) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
@@ -299,7 +307,7 @@ export default class Staff {
         throw new Utils.iKomidaError(this.IKOMIDA_RESELLER_SERVICE_NEW_STAFF_CANT_SEND_EMAIL, exception)
       }
       await transaction.commit()
-      return new Utils.Return(true)
+      return new Classes.Return(true)
     } catch (exception: any) {
       await transaction?.rollback()
       let error = new Utils.iKomidaError(
@@ -313,7 +321,7 @@ export default class Staff {
     }
   }
 
-  async removeStaff(identity: Types.Classes.CUser, id: string) {
+  async removeStaff(identity: Types.Classes.CUser, id: string, query?: Types.Interfaces.IMetadata) {
     try {
       const role = identity.role
       if (!role || ![Types.Types.TRoles.VENDOR, Types.Types.TRoles.ADMIN].includes(role)) {
@@ -322,22 +330,33 @@ export default class Staff {
       if (!Logics.Validations.validateUUID(id)) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_MISSING_DATA)
       }
-      const contractModel = await DBModels.ContractModel.findOne({
-        where: {
-          ikomidaID: identity?.ikomidaID
-        },
-        include: [
-          {
-            model: DBModels.UserModel,
-            where: {
-              id: identity.id,
-              role: {
-                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
-              }
-            },
-            required: true
+      if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+      }
+
+      const include: Domain.SqlDB.Includeable[] = []
+      if (!Types.Types.TRoles.isInternal(identity.role)) {
+        include.push({
+          model: DBModels.UserModel,
+          required: true,
+          where: {
+            id: identity.id,
+            role: {
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
+            }
           }
-        ]
+        })
+      }
+      const contractModel = await DBModels.ContractModel.findOne({
+        where:
+          Types.Types.TRoles.isInternal(identity.role) && Logics.Validations.validateUUID(query?.contractId)
+            ? {
+              id: query?.contractId
+            }
+            : {
+              ikomidaID: identity?.ikomidaID
+            },
+        include
       })
       if ((contractModel?.users?.length ?? 0) !== 1) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
@@ -351,7 +370,7 @@ export default class Staff {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_INVALID_USER)
       }
       await staffModels?.[0].destroy()
-      return new Utils.Return(true)
+      return new Classes.Return(true)
     } catch (exception: any) {
       let error = new Utils.iKomidaError(
         Utils.iKomidaError.IKOMIDA_ADMIN_SERVICE_DELETE_SETTING_EXCEPTION,
@@ -392,7 +411,7 @@ export default class Staff {
   //             referralCount.push({ level: index, count: usersByReferral.length })
   //             usersByReferral = newUsersByReferral
   //         }
-  //         return new Utils.Return(true, referralCount)
+  //         return new Classes.Return(true, referralCount)
   //     } catch (exception: any) {
   //         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_RESELLER_SERVICE_NEW_RESELLER_EXCEPTION, exception?.message)
   //         return error.logAndReturn(this.logger)
