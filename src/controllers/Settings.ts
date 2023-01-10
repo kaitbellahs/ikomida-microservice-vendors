@@ -1,14 +1,6 @@
-import {
-  GateWays,
-  Domain,
-  Utils,
-  Logics,
-  BackendTypes,
-  Types,
-  Helpers,
-  DBModels,
-  objHasProp
-} from '@ikomida/shared-backend'
+import { GateWays, Domain, Utils, Logics, BackendTypes, Types, Helpers, DBModels } from '@ikomida/shared-backend'
+import { Classes } from '@ikomida/shared-types'
+// import type { IiKomidaError } from '../../../../POC/node_modules/@ikomida/shared-backend/lib/src/Utils/iKomidaError'
 
 export default class Settings {
   logger
@@ -19,43 +11,54 @@ export default class Settings {
     this.googleAdmin = new Utils.GoogleAdmin(this.logger)
   }
 
-  async getSettings(identity: Types.Classes.CUser) {
+  async getSettings(identity: Types.Classes.CUser, query?: Types.Interfaces.IMetadata) {
     try {
-      const contractModel = await DBModels.ContractModel.findOne({
-        where: {
-          ikomidaID: identity.ikomidaID
+      if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+      }
+      const include: Domain.SqlDB.Includeable[] = [
+        {
+          model: DBModels.AddressModel,
+          where: {
+            role: Types.Types.TRoles.VENDOR
+          },
+          required: false,
+          order: [['createdAt', 'DESC']],
+          limit: 1
         },
-        include: [
-          {
-            model: DBModels.AddressModel,
-            where: {
-              role: Types.Types.TRoles.VENDOR
-            },
-            required: false,
-            order: [['createdAt', 'DESC']],
-            limit: 1
-          },
-          {
-            model: DBModels.UserModel,
-            required: true,
-            where: {
-              id: identity.id,
-              role: {
-                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
-              }
+        {
+          model: DBModels.VendorSettingsModel,
+          required: false,
+          include: [
+            {
+              model: DBModels.VendorPaymentGatewayModel,
+              required: false
             }
-          },
-          {
-            model: DBModels.VendorSettingsModel,
-            required: false,
-            include: [
-              {
-                model: DBModels.VendorPaymentGatewayModel,
-                required: false
-              }
-            ]
+          ]
+        }
+      ]
+      if (!Types.Types.TRoles.isInternal(identity.role)) {
+        include.push({
+          model: DBModels.UserModel,
+          required: true,
+          where: {
+            id: identity.id,
+            role: {
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
+            }
           }
-        ]
+        })
+      }
+      const contractModel = await DBModels.ContractModel.findOne({
+        where:
+          Types.Types.TRoles.isInternal(identity.role) && Logics.Validations.validateUUID(query?.contractId)
+            ? {
+                id: query?.contractId
+              }
+            : {
+                ikomidaID: identity?.ikomidaID
+              },
+        include
       })
       if (!contractModel) {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_GET_SETTINGS_INVALID_CONTRACT)
@@ -100,10 +103,7 @@ export default class Settings {
           vendorPaymentGatewayModel?.gateway ?? '',
           vendorPaymentGatewayModel?.data ? true : false
         ),
-        business: Types.Classes.CBusinessTime.fromObject({
-          hours: vendorSettingsModel?.businessHours,
-          days: vendorSettingsModel?.businessDays
-        }),
+        business: vendorSettingsModel?.businessHours,
         delivery: Types.Classes.CVendorDelivery.init(
           vendorSettingsModel?.deliveryFree ?? false,
           vendorSettingsModel?.delivery ?? 0,
@@ -117,7 +117,9 @@ export default class Settings {
         orderTypes: vendorSettingsModel?.orderTypes,
         tip: vendorSettingsModel?.tip
       })
-      return new Utils.Return(true, object)
+      object.business = Types.Classes.CBusinessTime.fromObject(vendorSettingsModel?.businessHours)
+      console.log('object:', object.business)
+      return new Classes.Return(true, object)
     } catch (exception: any) {
       const error = new Utils.iKomidaError(
         Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_PROFILE_UPLOAD_Image_EXCEPTION,
@@ -127,32 +129,42 @@ export default class Settings {
     }
   }
 
-  async getPagSeguroURL(identity: Types.Classes.CUser) {
-    const contractModel = await DBModels.ContractModel.findOne({
-      where: {
-        [Domain.SqlDB.Op.and]: [
-          {
-            ikomidaID: identity.ikomidaID
-          },
-          {
-            ikomidaID: {
-              [Domain.SqlDB.Op.not]: 'com.ikomida.br.demo'
-            }
-          }
-        ]
-      },
-      include: [
-        {
-          model: DBModels.UserModel,
-          required: true,
-          where: {
-            id: identity.id,
-            role: {
-              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR]
-            }
+  async getPagSeguroURL(identity: Types.Classes.CUser, query?: Types.Interfaces.IMetadata) {
+    if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+      throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+    }
+    const include: Domain.SqlDB.Includeable[] = []
+    if (!Types.Types.TRoles.isInternal(identity.role)) {
+      include.push({
+        model: DBModels.UserModel,
+        required: true,
+        where: {
+          id: identity.id,
+          role: {
+            [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR]
           }
         }
-      ]
+      })
+    }
+    const contractModel = await DBModels.ContractModel.findOne({
+      where:
+        Types.Types.TRoles.isInternal(identity.role) && Logics.Validations.validateUUID(query?.contractId)
+          ? {
+              id: query?.contractId
+            }
+          : {
+              [Domain.SqlDB.Op.and]: [
+                {
+                  ikomidaID: identity.ikomidaID
+                },
+                {
+                  ikomidaID: {
+                    [Domain.SqlDB.Op.not]: 'com.ikomida.br.demo'
+                  }
+                }
+              ]
+            },
+      include
     })
     if (!contractModel) {
       const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_GET_PAGSEGURO_URL_INVALID_CONTRACT)
@@ -167,48 +179,59 @@ export default class Settings {
       return error.logAndReturn(this.logger)
     }
     const url = paymentGateway?.generateConnectUrl(contractModel?.ikomidaID)
-    return new Utils.Return(url !== null, {
+    return new Classes.Return(url !== null, {
       url
     })
   }
 
-  async updateProfile(identity: Types.Classes.CUser, input: any) {
+  async updateProfile(identity: Types.Classes.CUser, input: any, query?: Types.Interfaces.IMetadata) {
     let transaction: Domain.SqlDB.Transaction | undefined = undefined
     try {
       const payload: Types.Classes.CVendorProfile = Types.Classes.CVendorProfile.fromObject(input)
+      if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+      }
       if (!payload.validate()) {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_PROFILE_MISSING_DATA)
         return error.logAndReturn(this.logger)
       }
-      const contractModel = await DBModels.ContractModel.findOne({
-        where: {
-          ikomidaID: identity.ikomidaID
+      const include: Domain.SqlDB.Includeable[] = [
+        {
+          model: DBModels.AddressModel,
+          where: {
+            role: Types.Types.TRoles.VENDOR
+          },
+          required: false,
+          order: [['createdAt', 'DESC']],
+          limit: 1
         },
-        include: [
-          {
-            model: DBModels.AddressModel,
-            where: {
-              role: Types.Types.TRoles.VENDOR
-            },
-            required: false,
-            order: [['createdAt', 'DESC']],
-            limit: 1
-          },
-          {
-            model: DBModels.UserModel,
-            required: true,
-            where: {
-              id: identity.id,
-              role: {
-                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR]
-              }
+        {
+          model: DBModels.VendorSettingsModel,
+          required: true
+        }
+      ]
+      if (!Types.Types.TRoles.isInternal(identity.role)) {
+        include.push({
+          model: DBModels.UserModel,
+          required: true,
+          where: {
+            id: identity.id,
+            role: {
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR]
             }
-          },
-          {
-            model: DBModels.VendorSettingsModel,
-            required: true
           }
-        ]
+        })
+      }
+      const contractModel = await DBModels.ContractModel.findOne({
+        where:
+          Types.Types.TRoles.isInternal(identity.role) && Logics.Validations.validateUUID(query?.contractId)
+            ? {
+                id: query?.contractId
+              }
+            : {
+                ikomidaID: identity?.ikomidaID
+              },
+        include
       })
       if (!contractModel) {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_PROFILE_INVALID_CONTRACT)
@@ -266,7 +289,7 @@ export default class Settings {
         )
       }
       await transaction.commit()
-      return new Utils.Return(true, null)
+      return new Classes.Return(true, null)
     } catch (exception: any) {
       await transaction?.rollback()
       const error = new Utils.iKomidaError(
@@ -277,49 +300,60 @@ export default class Settings {
     }
   }
 
-  async integratePagseguroGateway(identity: Types.Classes.CUser, input: any) {
+  async integratePagseguroGateway(identity: Types.Classes.CUser, input: any, query?: Types.Interfaces.IMetadata) {
     try {
       const payload: Types.Classes.CvendorPagseguroIntegration =
         Types.Classes.CvendorPagseguroIntegration.fromObject(input)
+      if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+      }
       if (!payload.validate()) {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_INTEGRATE_PAGSEGURO_MISSING_DATA)
         return error.logAndReturn(this.logger)
       }
-      const contractModel = await DBModels.ContractModel.findOne({
-        where: {
-          [Domain.SqlDB.Op.and]: [
+      const include: Domain.SqlDB.Includeable[] = [
+        {
+          model: DBModels.VendorSettingsModel,
+          required: true,
+          include: [
             {
-              ikomidaID: identity.ikomidaID
-            },
-            {
-              ikomidaID: {
-                [Domain.SqlDB.Op.not]: 'com.ikomida.br.demo'
-              }
+              model: DBModels.VendorPaymentGatewayModel,
+              required: false
             }
           ]
-        },
-        include: [
-          {
-            model: DBModels.UserModel,
-            required: true,
-            where: {
-              id: identity.id,
-              role: {
-                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
-              }
+        }
+      ]
+      if (!Types.Types.TRoles.isInternal(identity.role)) {
+        include.push({
+          model: DBModels.UserModel,
+          required: true,
+          where: {
+            id: identity.id,
+            role: {
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
             }
-          },
-          {
-            model: DBModels.VendorSettingsModel,
-            required: true,
-            include: [
-              {
-                model: DBModels.VendorPaymentGatewayModel,
-                required: false
-              }
-            ]
           }
-        ]
+        })
+      }
+      const contractModel = await DBModels.ContractModel.findOne({
+        where:
+          Types.Types.TRoles.isInternal(identity.role) && Logics.Validations.validateUUID(query?.contractId)
+            ? {
+                id: query?.contractId
+              }
+            : {
+                [Domain.SqlDB.Op.and]: [
+                  {
+                    ikomidaID: identity.ikomidaID
+                  },
+                  {
+                    ikomidaID: {
+                      [Domain.SqlDB.Op.not]: 'com.ikomida.br.demo'
+                    }
+                  }
+                ]
+              },
+        include
       })
       if (!contractModel || contractModel.ikomidaID !== payload?.state) {
         const error = new Utils.iKomidaError(
@@ -364,7 +398,7 @@ export default class Settings {
           contractId: contractModel.id
         })) as DBModels.VendorPaymentGatewayModel
       }
-      return new Utils.Return(
+      return new Classes.Return(
         true,
         Types.Classes.CVendorPaymentGateway.init(
           vendorPaymentGatewayModel?.gateway ?? '',
@@ -380,43 +414,54 @@ export default class Settings {
     }
   }
 
-  async revokePagseguroGateway(identity: Types.Classes.CUser) {
+  async revokePagseguroGateway(identity: Types.Classes.CUser, query?: Types.Interfaces.IMetadata) {
     try {
-      const contractModel = await DBModels.ContractModel.findOne({
-        where: {
-          [Domain.SqlDB.Op.and]: [
+      if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+      }
+      const include: Domain.SqlDB.Includeable[] = [
+        {
+          model: DBModels.VendorSettingsModel,
+          required: true,
+          include: [
             {
-              ikomidaID: identity.ikomidaID
-            },
-            {
-              ikomidaID: {
-                [Domain.SqlDB.Op.not]: 'com.ikomida.br.demo'
-              }
+              model: DBModels.VendorPaymentGatewayModel,
+              required: false
             }
           ]
-        },
-        include: [
-          {
-            model: DBModels.UserModel,
-            required: true,
-            where: {
-              id: identity.id,
-              role: {
-                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
-              }
+        }
+      ]
+      if (!Types.Types.TRoles.isInternal(identity.role)) {
+        include.push({
+          model: DBModels.UserModel,
+          required: true,
+          where: {
+            id: identity.id,
+            role: {
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
             }
-          },
-          {
-            model: DBModels.VendorSettingsModel,
-            required: true,
-            include: [
-              {
-                model: DBModels.VendorPaymentGatewayModel,
-                required: false
-              }
-            ]
           }
-        ]
+        })
+      }
+      const contractModel = await DBModels.ContractModel.findOne({
+        where:
+          Types.Types.TRoles.isInternal(identity.role) && Logics.Validations.validateUUID(query?.contractId)
+            ? {
+                id: query?.contractId
+              }
+            : {
+                [Domain.SqlDB.Op.and]: [
+                  {
+                    ikomidaID: identity.ikomidaID
+                  },
+                  {
+                    ikomidaID: {
+                      [Domain.SqlDB.Op.not]: 'com.ikomida.br.demo'
+                    }
+                  }
+                ]
+              },
+        include
       })
       if (!contractModel) {
         const error = new Utils.iKomidaError(
@@ -438,7 +483,7 @@ export default class Settings {
         await paymentGateway?.revokeToken()
         await vendorPaymentGatewayModel?.destroy()
       }
-      return new Utils.Return(
+      return new Classes.Return(
         true,
         Types.Classes.CVendorPaymentGateway.init(vendorPaymentGatewayModel?.gateway ?? '', false)
       )
@@ -451,35 +496,46 @@ export default class Settings {
     }
   }
 
-  async updateBusinessHours(identity: Types.Classes.CUser, object: any) {
+  async updateBusinessHours(identity: Types.Classes.CUser, object: any, query?: Types.Interfaces.IMetadata) {
     try {
-      const businessTime: Types.Classes.CBusinessTime = Types.Classes.CBusinessTime.fromObject(object)
-      if (!businessTime.validate()) {
+      const businessTime: Types.Classes.CBusinessTime[] = Types.Classes.CBusinessTime.fromObject(object)
+      if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+      }
+      if (!Array.isArray(businessTime)) {
         const error = new Utils.iKomidaError(
           Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_BUSNIESS_HOURS_MISSING_DATA
         )
         return error.logAndReturn(this.logger)
       }
-      const contractModel = await DBModels.ContractModel.findOne({
-        where: {
-          ikomidaID: identity.ikomidaID
-        },
-        include: [
-          {
-            model: DBModels.UserModel,
-            required: true,
-            where: {
-              id: identity.id,
-              role: {
-                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
-              }
+      const include: Domain.SqlDB.Includeable[] = [
+        {
+          model: DBModels.VendorSettingsModel,
+          required: true
+        }
+      ]
+      if (!Types.Types.TRoles.isInternal(identity.role)) {
+        include.push({
+          model: DBModels.UserModel,
+          required: true,
+          where: {
+            id: identity.id,
+            role: {
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
             }
-          },
-          {
-            model: DBModels.VendorSettingsModel,
-            required: true
           }
-        ]
+        })
+      }
+      const contractModel = await DBModels.ContractModel.findOne({
+        where:
+          Types.Types.TRoles.isInternal(identity.role) && Logics.Validations.validateUUID(query?.contractId)
+            ? {
+                id: query?.contractId
+              }
+            : {
+                ikomidaID: identity?.ikomidaID
+              },
+        include
       })
       if (!contractModel) {
         const error = new Utils.iKomidaError(
@@ -492,10 +548,9 @@ export default class Settings {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_BUSNIESS_HOURS_EMPTY)
         return error.logAndReturn(this.logger)
       }
-      vendorSettingsModel.businessHours = businessTime?.hours
-      vendorSettingsModel.businessDays = businessTime?.days
+      vendorSettingsModel.businessHours = businessTime.map(expedient => expedient.toJSON())
       await vendorSettingsModel.save()
-      return new Utils.Return(true, null)
+      return new Classes.Return(true, null)
     } catch (exception: any) {
       const error = new Utils.iKomidaError(
         Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_BUSNIESS_HOURS_EXCEPTION,
@@ -505,33 +560,44 @@ export default class Settings {
     }
   }
 
-  async updateDelivery(identity: Types.Classes.CUser, object: any) {
+  async updateDelivery(identity: Types.Classes.CUser, object: any, query?: Types.Interfaces.IMetadata) {
     try {
       const vendorSettings: Types.Classes.CVendorSettings = Types.Classes.CVendorSettings.fromObject(object)
+      if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+      }
       if (!vendorSettings.validate()) {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_DELIVERY_MISSING_DATA)
         return error.logAndReturn(this.logger)
       }
-      const contractModel = await DBModels.ContractModel.findOne({
-        where: {
-          ikomidaID: identity.ikomidaID
-        },
-        include: [
-          {
-            model: DBModels.UserModel,
-            required: true,
-            where: {
-              id: identity.id,
-              role: {
-                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
-              }
+      const include: Domain.SqlDB.Includeable[] = [
+        {
+          model: DBModels.VendorSettingsModel,
+          required: true
+        }
+      ]
+      if (!Types.Types.TRoles.isInternal(identity.role)) {
+        include.push({
+          model: DBModels.UserModel,
+          required: true,
+          where: {
+            id: identity.id,
+            role: {
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
             }
-          },
-          {
-            model: DBModels.VendorSettingsModel,
-            required: true
           }
-        ]
+        })
+      }
+      const contractModel = await DBModels.ContractModel.findOne({
+        where:
+          Types.Types.TRoles.isInternal(identity.role) && Logics.Validations.validateUUID(query?.contractId)
+            ? {
+                id: query?.contractId
+              }
+            : {
+                ikomidaID: identity?.ikomidaID
+              },
+        include
       })
       if (!contractModel) {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_DELIVERY_INVALID_CONTRACT)
@@ -559,7 +625,7 @@ export default class Settings {
         vendorSettingsModel.tip = Logics.Finances.toFinanceNumber(vendorSettings?.tip) ?? vendorSettingsModel.tip
       }
       await vendorSettingsModel.save()
-      return new Utils.Return(true, null)
+      return new Classes.Return(true, null)
     } catch (exception: any) {
       const error = new Utils.iKomidaError(
         Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_UPDATE_DELIVERY_EXCEPTION,
@@ -569,33 +635,44 @@ export default class Settings {
     }
   }
 
-  async getLimits(identity: Types.Classes.CUser) {
+  async getLimits(identity: Types.Classes.CUser, query?: Types.Interfaces.IMetadata) {
     try {
       //TODO: -- make it as a single transaction
-      const contractModel = await DBModels.ContractModel.findOne({
-        where: {
-          ikomidaID: identity.ikomidaID
+      if (!identity?.ikomidaID && !Logics.Validations.validateUUID(query?.contractId)) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+      }
+      const include: Domain.SqlDB.Includeable[] = [
+        {
+          model: DBModels.PlanModel,
+          required: true
         },
-        include: [
-          {
-            model: DBModels.UserModel,
-            required: true,
-            where: {
-              id: identity.id,
-              role: {
-                [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
-              }
+        {
+          model: DBModels.ContractPaymentSignatureModel,
+          required: false
+        }
+      ]
+      if (!Types.Types.TRoles.isInternal(identity.role)) {
+        include.push({
+          model: DBModels.UserModel,
+          required: true,
+          where: {
+            id: identity.id,
+            role: {
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
             }
-          },
-          {
-            model: DBModels.PlanModel,
-            required: true
-          },
-          {
-            model: DBModels.ContractPaymentSignatureModel,
-            required: false
           }
-        ]
+        })
+      }
+      const contractModel = await DBModels.ContractModel.findOne({
+        where:
+          Types.Types.TRoles.isInternal(identity.role) && Logics.Validations.validateUUID(query?.contractId)
+            ? {
+                id: query?.contractId
+              }
+            : {
+                ikomidaID: identity?.ikomidaID
+              },
+        include
       })
       if (!contractModel) {
         throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PAYMENTS_SERVICE_NEW_PAYMENT_METHOD_INVALID_CONTRACT)
@@ -643,7 +720,7 @@ export default class Settings {
           (ordersTotal?.length ?? 0) > 0 ? ordersTotal?.reduce((a, b) => a + b) ?? 0 : 1
         )
       )
-      return new Utils.Return(true, vendorLimits)
+      return new Classes.Return(true, vendorLimits)
     } catch (exception: any) {
       let error = new Utils.iKomidaError(
         Utils.iKomidaError.IKOMIDA_PAYMENTS_SERVICE_NEW_PAYMENT_METHOD_EXCEPTION,
@@ -654,25 +731,5 @@ export default class Settings {
       }
       return error.logAndReturn(this.logger)
     }
-  }
-
-  validateBusinessHoursObject(object: Types.Classes.CBusinessTime) {
-    if (!objHasProp(['days', 'hours'], object)) {
-      return false
-    }
-    if (
-      !Array.isArray(object.hours) ||
-      object.hours.length < 1 ||
-      !Array.isArray(object.days) ||
-      object.days.length < 1
-    ) {
-      return false
-    }
-    for (const hours of object.hours) {
-      if (!objHasProp(['start', 'end'], hours)) {
-        return false
-      }
-    }
-    return true
   }
 }

@@ -1,4 +1,6 @@
-import { Domain, Utils, DBModels, Types } from '@ikomida/shared-backend'
+import { Utils, DBModels, Types, Domain } from '@ikomida/shared-backend'
+import { Validations } from '@ikomida/shared-logics'
+import { Classes } from '@ikomida/shared-types'
 
 export default class App {
   logger
@@ -9,17 +11,38 @@ export default class App {
     this.googleAdmin = new Utils.GoogleAdmin(this.logger)
   }
 
-  async getApp(identity: Types.Classes.CUser) {
-    const contractModel = await DBModels.ContractModel.findOne({
-      where: {
-        ikomidaID: identity.ikomidaID
-      },
-      include: [
-        {
-          model: DBModels.AppModel,
-          required: false
+  async getApp(identity: Types.Classes.CUser, query?: Types.Interfaces.IMetadata) {
+    if (!identity?.ikomidaID && !Validations.validateUUID(query?.contractId)) {
+      throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
+    }
+    const include: Domain.SqlDB.Includeable[] = [
+      {
+        model: DBModels.AppModel,
+        required: false
+      }
+    ]
+    if (!Types.Types.TRoles.isInternal(identity.role)) {
+      include.push({
+        model: DBModels.UserModel,
+        required: true,
+        where: {
+          id: identity.id,
+          role: {
+            [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
+          }
         }
-      ]
+      })
+    }
+    const contractModel = await DBModels.ContractModel.findOne({
+      where:
+        Types.Types.TRoles.isInternal(identity.role) && Validations.validateUUID(query?.contractId)
+          ? {
+            id: query?.contractId
+          }
+          : {
+            ikomidaID: identity?.ikomidaID
+          },
+      include
     })
     if (!contractModel) {
       const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_GET_LAYOUTS_INVALID_CONTRACT)
@@ -56,15 +79,18 @@ export default class App {
       )
     })
 
-    return new Utils.Return(true, apps)
+    return new Classes.Return(true, apps)
   }
 
-  async updateApp(identity: Types.Classes.CUser, input: any) {
+  async updateApp(identity: Types.Classes.CUser, input: any, query?: Types.Interfaces.IMetadata) {
     try {
       const payload: Types.Classes.CApp[] = Types.Classes.CApp.fromObject(input)
       if (payload.length === 0) {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_SET_LAYOUTS_MISSING_DATA)
         return error.logAndReturn(this.logger)
+      }
+      if (!identity?.ikomidaID && !Validations.validateUUID(query?.contractId)) {
+        throw new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_PRODUCTS_SERVICE_GET_PRODUCTS_INVALID_CONTRACT)
       }
       const app = payload.filter(app => {
         return app.icon || app.description
@@ -73,16 +99,34 @@ export default class App {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_SET_LAYOUTS_MISSING_DATA)
         return error.logAndReturn(this.logger)
       }
-      const contractModel = await DBModels.ContractModel.findOne({
-        where: {
-          ikomidaID: identity.ikomidaID
-        },
-        include: [
-          {
-            model: DBModels.AppModel,
-            required: true
+      const include: Domain.SqlDB.Includeable[] = [
+        {
+          model: DBModels.AppModel,
+          required: true
+        }
+      ]
+      if (!Types.Types.TRoles.isInternal(identity.role)) {
+        include.push({
+          model: DBModels.UserModel,
+          required: true,
+          where: {
+            id: identity.id,
+            role: {
+              [Domain.SqlDB.Op.in]: [Types.Types.TRoles.VENDOR, Types.Types.TRoles.STAFF]
+            }
           }
-        ]
+        })
+      }
+      const contractModel = await DBModels.ContractModel.findOne({
+        where:
+          Types.Types.TRoles.isInternal(identity.role) && Validations.validateUUID(query?.contractId)
+            ? {
+              id: query?.contractId
+            }
+            : {
+              ikomidaID: identity?.ikomidaID
+            },
+        include
       })
       if (!contractModel) {
         const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_SET_LAYOUT_INVALID_CONTRACT)
@@ -106,7 +150,7 @@ export default class App {
         appModel.description = app.description
         await appModel.save()
       }
-      return new Utils.Return(true, null)
+      return new Classes.Return(true, null)
     } catch (exception: any) {
       const error = new Utils.iKomidaError(Utils.iKomidaError.IKOMIDA_VENDOR_SERVICE_SET_LAYOUT_EXCEPTION, exception)
       return error.logAndReturn(this.logger)
