@@ -29,90 +29,90 @@ const vendorApp = new App(logger)
 
 app.get('/vendor/limits', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await settings.getLimits(identity)
+  const payload = await settings.getLimits(identity, req.query as Types.Interfaces.IMetadata)
   res.sendResponse(payload)
 })
 
 app.get('/vendor/app', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await vendorApp.getApp(identity)
+  const payload = await vendorApp.getApp(identity, req.query as Types.Interfaces.IMetadata)
   res.sendResponse(payload)
 })
 
 app.patch('/vendor/app', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await vendorApp.updateApp(identity, req.body)
+  const payload = await vendorApp.updateApp(identity, req.body, req.query as Types.Interfaces.IMetadata)
   res.sendResponse(payload)
 })
 
 app.get('/vendor/settings', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await settings.getSettings(identity)
+  const payload = await settings.getSettings(identity, req.query as Types.Interfaces.IMetadata)
   res.sendResponse(payload)
 })
 
 app.put('/vendor/settings', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await settings.updateProfile(identity, req.body)
+  const payload = await settings.updateProfile(identity, req.body, req.query as Types.Interfaces.IMetadata)
   res.status(payload?.success ? 201 : 200).sendResponse(payload)
 })
 
 app.get('/vendor/staff/:timestamp', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await staff.getStaff(identity, Number(req.params?.timestamp) ?? 0)
+  const payload = await staff.getStaff(identity, Number(req.params?.timestamp) ?? 0, req.query as Types.Interfaces.IMetadata)
   res.sendResponse(payload)
 })
 
 app.post('/vendor/staff', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await staff.newStaff(identity, req.body)
+  const payload = await staff.newStaff(identity, req.body, req.query as Types.Interfaces.IMetadata)
   res.status(payload?.success ? 201 : 200).sendResponse(payload)
 })
 
 app.delete('/vendor/staff/:id', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await staff.removeStaff(identity, req.params?.id)
+  const payload = await staff.removeStaff(identity, req.params?.id, req.query as Types.Interfaces.IMetadata)
   res.status(payload?.success ? 201 : 200).sendResponse(payload)
 })
 
 app.get('/layout', async (req, res) => {
-  const payload = await layout.getLayout(String(req.headers?.['x-ikomida-id']))
+  const payload = await layout.getLayout(String(req.headers?.['x-ikomida-id']), req.query as Types.Interfaces.IMetadata)
   res.sendResponse(payload)
 })
 
 app.put('/layout', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await layout.setLayout(identity, req.body)
+  const payload = await layout.setLayout(identity, req.body, req.query as Types.Interfaces.IMetadata)
   res.status(payload?.success ? 201 : 200).sendResponse(payload)
 })
 
 app.put('/vendor/updatePaymentGateway', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await settings.integratePagseguroGateway(identity, req.body)
+  const payload = await settings.integratePagseguroGateway(identity, req.body, req.query as Types.Interfaces.IMetadata)
   res.status(payload?.success ? 201 : 200).sendResponse(payload)
 })
 
 app.delete('/vendor/revokePaymentGateway', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await settings.revokePagseguroGateway(identity)
+  const payload = await settings.revokePagseguroGateway(identity, req.query as Types.Interfaces.IMetadata)
   res.status(payload?.success ? 201 : 200).sendResponse(payload)
 })
 
 app.put('/vendor/businessHours', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await settings.updateBusinessHours(identity, req.body)
+  const payload = await settings.updateBusinessHours(identity, req.body, req.query as Types.Interfaces.IMetadata)
   res.status(payload?.success ? 201 : 200).sendResponse(payload)
 })
 
 app.put('/vendor/delivery', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await settings.updateDelivery(identity, req.body)
+  const payload = await settings.updateDelivery(identity, req.body, req.query as Types.Interfaces.IMetadata)
   res.status(payload?.success ? 201 : 200).sendResponse(payload)
 })
 
 app.get('/vendor/pagSeguroUrl', async (req, res) => {
   const identity: Types.Classes.CUser = Types.Classes.CUser.fromObject(req.headers?.identity)
-  const payload = await settings.getPagSeguroURL(identity)
+  const payload = await settings.getPagSeguroURL(identity, req.query as Types.Interfaces.IMetadata)
   res.status(payload?.success ? 201 : 200).sendResponse(payload)
 })
 
